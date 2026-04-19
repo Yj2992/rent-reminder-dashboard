@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rentomatic-tenant-portal
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_BACKEND_BASE_URL
+        value: https://ktor-sendgrid-backend.onrender.com
