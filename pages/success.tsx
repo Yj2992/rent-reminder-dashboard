@@ -1,48 +1,49 @@
 import Link from "next/link"
-import { useEffect } from "react"
+import { useRouter } from "next/router"
 
 export default function Success() {
-  useEffect(() => {
-    // dynamically import canvas-confetti to avoid SSR issues
-    import("canvas-confetti").then((confetti) => {
-      const duration = 2 * 1000 // 2 seconds
-      const end = Date.now() + duration
-
-      ;(function frame() {
-        confetti.default({
-          particleCount: 5,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 }, // left side
-        })
-        confetti.default({
-          particleCount: 5,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 }, // right side
-        })
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame)
-        }
-      })()
-    })
-  }, [])
+  const router = useRouter()
+  const invoice = Array.isArray(router.query.invoice) ? router.query.invoice[0] : router.query.invoice
+  const token = Array.isArray(router.query.token) ? router.query.token[0] : router.query.token
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100">
-      <div className="bg-white shadow-2xl rounded-2xl p-10 max-w-md w-full text-center border border-green-100">
-        <div className="text-green-600 text-6xl mb-4 animate-bounce">✅</div>
-        <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Payment Successful!</h1>
-        <p className="text-gray-600 mb-8">Your rent has been paid securely. 🎉</p>
+    <main className="min-h-screen bg-[#f5f7f8] px-4 py-6 text-[#17211f]">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl items-center justify-center">
+        <section className="w-full max-w-md rounded-lg border border-[#cfe4d7] bg-white p-6 shadow-sm">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-[#e9f8ef] text-xl font-bold text-[#207348]">
+            ✓
+          </div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#207348]">Payment successful</p>
+          <h1 className="mt-2 text-3xl font-bold">Rent payment received</h1>
+          <p className="mt-3 text-[#5d6d68]">
+            Your payment was verified securely. A paid receipt will be sent to your email.
+          </p>
 
-        <Link
-          href="/"
-          className="block w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 hover:shadow-lg transition transform hover:scale-[1.02]"
-        >
-          Back to Home
-        </Link>
+          {invoice && (
+            <div className="mt-5 rounded-lg border border-[#e1e8e6] bg-[#f8faf9] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6f7e79]">Invoice ID</p>
+              <p className="mt-2 break-words font-mono text-sm text-[#17211f]">{invoice}</p>
+            </div>
+          )}
+
+          <div className="mt-6 space-y-3">
+            {token && (
+              <Link
+                href={`/pay/${encodeURIComponent(token)}`}
+                className="block w-full rounded-lg border border-[#bfd6cf] px-4 py-3 text-center font-semibold text-[#1f6f5b] transition hover:bg-[#eef7f3]"
+              >
+                View invoice status
+              </Link>
+            )}
+            <Link
+              href="/"
+              className="block w-full rounded-lg bg-[#1f6f5b] px-4 py-3 text-center font-semibold text-white transition hover:bg-[#185846]"
+            >
+              Done
+            </Link>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
