@@ -270,7 +270,7 @@ export default function PayPage() {
                 rel="noreferrer"
                 className="block w-full rounded-lg border border-[#bfd6cf] px-4 py-3 text-center font-semibold text-[#1f6f5b] transition hover:bg-[#eef7f3]"
               >
-                View invoice PDF
+                {paid ? "View paid invoice PDF" : "View invoice PDF"}
               </a>
             )}
 
