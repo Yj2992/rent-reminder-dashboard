@@ -14,6 +14,14 @@ type Invoice = {
   publicUrl?: string
   paymentUrl?: string
   alreadyPaid?: boolean
+  bankName?: string
+  accountNumber?: string
+  branchName?: string
+  ifsc?: string
+  upi?: string
+  manualPaymentStatus?: string
+  manualPaymentReviewNote?: string
+  manualPaymentMethod?: string
 }
 
 type PaymentOrder = {
@@ -56,17 +64,47 @@ function readableStatus(status: string, paid: boolean) {
   return "Pending"
 }
 
+function readableManualStatus(status?: string) {
+  switch (status?.toUpperCase()) {
+    case "SUBMITTED":
+      return "Proof submitted"
+    case "APPROVED":
+      return "Proof approved"
+    case "DECLINED":
+      return "Proof declined"
+    default:
+      return ""
+  }
+}
+
+function paymentMethodLabel(method: string) {
+  switch (method) {
+    case "UPI":
+      return "UPI"
+    case "NEFT_RTGS":
+      return "NEFT / RTGS"
+    default:
+      return "Bank transfer"
+  }
+}
+
 export default function PayPage() {
   const router = useRouter()
   const { tenantId } = router.query
   const token = Array.isArray(tenantId) ? tenantId[0] : tenantId
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
+  const [uploadingProof, setUploadingProof] = useState(false)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [error, setError] = useState("")
+  const [manualMethod, setManualMethod] = useState("UPI")
+  const [manualNote, setManualNote] = useState("")
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [manualMessage, setManualMessage] = useState("")
 
   const paid = invoice?.alreadyPaid || invoice?.status === "PAID"
   const statusLabel = readableStatus(invoice?.status || "", Boolean(paid))
+  const manualStatusLabel = readableManualStatus(invoice?.manualPaymentStatus)
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
     [invoice]
@@ -154,6 +192,34 @@ export default function PayPage() {
     } catch {
       setError("Could not start payment. Please check your connection and try again.")
       setPaying(false)
+    }
+  }
+
+  async function submitManualProof() {
+    if (!token || !invoice || paid || !proofFile) return
+
+    setUploadingProof(true)
+    setError("")
+    setManualMessage("")
+
+    try {
+      const formData = new FormData()
+      formData.append("token", token)
+      formData.append("method", manualMethod)
+      if (manualNote.trim()) {
+        formData.append("note", manualNote.trim())
+      }
+      formData.append("proof", proofFile)
+
+      const response = await axios.post(`${backendBaseUrl}/payments/manual-proof`, formData)
+      setManualMessage(response.data?.message || "Payment proof uploaded. Your landlord will review it.")
+      setProofFile(null)
+      setManualNote("")
+      await refreshInvoice()
+    } catch {
+      setError("Could not upload payment proof. Please try again with a clear screenshot.")
+    } finally {
+      setUploadingProof(false)
     }
   }
 
@@ -245,7 +311,7 @@ export default function PayPage() {
             <h2 className="font-semibold">Before you pay</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <TrustStep title="Review invoice" text="Check the amount and due date." active />
-              <TrustStep title="Pay securely" text="UPI, card, wallet, or netbanking." active={!paid} />
+              <TrustStep title="Choose payment" text="Razorpay or bank transfer proof upload." active={!paid} />
               <TrustStep title="Receipt email" text={paid ? "Payment is already complete." : "Sent after payment succeeds."} active={paid} />
             </div>
           </div>
@@ -261,6 +327,19 @@ export default function PayPage() {
           <p className="text-sm font-semibold text-[#5d6d68]">Amount payable</p>
           <p className="mt-2 text-4xl font-bold">{amountText}</p>
           <p className="mt-2 text-sm text-[#6f7e79]">Paid receipts are sent to the tenant email after successful verification.</p>
+
+          {manualStatusLabel && !paid && (
+            <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6f7e79]">Manual payment review</p>
+              <p className="mt-2 font-semibold text-[#17211f]">{manualStatusLabel}</p>
+              {invoice?.manualPaymentMethod && (
+                <p className="mt-1 text-sm text-[#5d6d68]">Method: {paymentMethodLabel(invoice.manualPaymentMethod)}</p>
+              )}
+              {invoice?.manualPaymentReviewNote && (
+                <p className="mt-2 text-sm text-[#5d6d68]">{invoice.manualPaymentReviewNote}</p>
+              )}
+            </div>
+          )}
 
           <div className="mt-6 space-y-3">
             {invoice.publicUrl && (
@@ -292,12 +371,87 @@ export default function PayPage() {
           </div>
 
           {!paid && (
-            <div className="mt-6 grid grid-cols-2 gap-2 text-center text-xs font-semibold text-[#5d6d68]">
-              <span className="rounded bg-[#f1f5f3] px-2 py-2">UPI</span>
-              <span className="rounded bg-[#f1f5f3] px-2 py-2">Card</span>
-              <span className="rounded bg-[#f1f5f3] px-2 py-2">Wallet</span>
-              <span className="rounded bg-[#f1f5f3] px-2 py-2">Netbanking</span>
-            </div>
+            <>
+              <div className="mt-6 grid grid-cols-2 gap-2 text-center text-xs font-semibold text-[#5d6d68]">
+                <span className="rounded bg-[#f1f5f3] px-2 py-2">UPI</span>
+                <span className="rounded bg-[#f1f5f3] px-2 py-2">Card</span>
+                <span className="rounded bg-[#f1f5f3] px-2 py-2">Wallet</span>
+                <span className="rounded bg-[#f1f5f3] px-2 py-2">Netbanking</span>
+              </div>
+
+              <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
+                <p className="text-sm font-semibold text-[#17211f]">Pay by UPI or bank transfer</p>
+                <p className="mt-2 text-sm text-[#5d6d68]">
+                  After payment, upload a screenshot so your landlord can review and approve it.
+                </p>
+
+                <div className="mt-4 space-y-2 rounded-lg border border-[#e1e8e6] bg-white p-4 text-sm text-[#17211f]">
+                  {invoice.bankName && <p><span className="font-semibold">Bank:</span> {invoice.bankName}</p>}
+                  {invoice.accountNumber && <p><span className="font-semibold">Account:</span> {invoice.accountNumber}</p>}
+                  {invoice.branchName && <p><span className="font-semibold">Branch:</span> {invoice.branchName}</p>}
+                  {invoice.ifsc && <p><span className="font-semibold">IFSC:</span> {invoice.ifsc}</p>}
+                  {invoice.upi && <p><span className="font-semibold">UPI:</span> {invoice.upi}</p>}
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {["UPI", "NEFT_RTGS"].map((option) => {
+                    const selected = manualMethod === option
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setManualMethod(option)}
+                        className={`rounded-lg border px-3 py-3 text-sm font-semibold transition ${
+                          selected
+                            ? "border-[#1f6f5b] bg-[#eef7f3] text-[#1f6f5b]"
+                            : "border-[#d5dfdc] bg-white text-[#5d6d68]"
+                        }`}
+                      >
+                        {paymentMethodLabel(option)}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <label className="mt-4 block text-sm font-semibold text-[#17211f]">
+                  Payment screenshot
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                    className="mt-2 block w-full rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f]"
+                  />
+                </label>
+
+                <label className="mt-4 block text-sm font-semibold text-[#17211f]">
+                  Note or reference
+                  <textarea
+                    value={manualNote}
+                    onChange={(event) => setManualNote(event.target.value)}
+                    rows={3}
+                    placeholder="UPI reference, bank transaction note, or anything helpful"
+                    className="mt-2 w-full resize-none rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f] outline-none transition placeholder:text-[#8a9894] focus:border-[#1f6f5b] focus:ring-2 focus:ring-[#d8ebe4]"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={submitManualProof}
+                  disabled={uploadingProof || !proofFile}
+                  className={`mt-4 w-full rounded-lg px-4 py-3 font-semibold transition ${
+                    uploadingProof || !proofFile
+                      ? "cursor-not-allowed bg-[#d7dfdc] text-[#7d8a86]"
+                      : "bg-[#1f6f5b] text-white hover:bg-[#185846] hover:shadow-md"
+                  }`}
+                >
+                  {uploadingProof ? "Uploading proof..." : "Upload payment proof"}
+                </button>
+
+                {manualMessage && (
+                  <p className="mt-3 text-sm text-[#1f6f5b]">{manualMessage}</p>
+                )}
+              </div>
+            </>
           )}
         </aside>
       </div>
