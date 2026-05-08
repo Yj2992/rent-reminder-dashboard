@@ -6,6 +6,7 @@ type Invoice = {
   invoiceId: string
   tenantName: string
   tenantEmail?: string
+  companyName?: string
   dueDate?: string
   invoiceNumber?: string
   amount: number
@@ -88,6 +89,28 @@ function paymentMethodLabel(method: string) {
   }
 }
 
+function paymentErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const responseData = error.response?.data
+    if (typeof responseData === "string" && responseData.trim()) {
+      return responseData
+    }
+    if (responseData && typeof responseData === "object" && "message" in responseData) {
+      const message = (responseData as { message?: unknown }).message
+      if (typeof message === "string" && message.trim()) {
+        return message
+      }
+    }
+    return error.message || "Could not start payment. Please try again."
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return "Could not start payment. Please check your connection and try again."
+}
+
 export default function PayPage() {
   const router = useRouter()
   const { tenantId } = router.query
@@ -151,7 +174,7 @@ export default function PayPage() {
         key: order.keyId,
         amount: order.amount,
         currency: order.currency,
-        name: "Rentomatic",
+        name: invoice.companyName || "Rentomatic",
         description: order.description,
         order_id: order.orderId,
         handler: async function (response: any) {
@@ -189,8 +212,8 @@ export default function PayPage() {
         setError("Payment was not completed. Please retry or use another payment method.")
       })
       checkout.open()
-    } catch {
-      setError("Could not start payment. Please check your connection and try again.")
+    } catch (error) {
+      setError(paymentErrorMessage(error))
       setPaying(false)
     }
   }
@@ -271,7 +294,7 @@ export default function PayPage() {
       <header className="border-b border-[#dce5e2] bg-white">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4">
           <div>
-            <p className="text-lg font-bold">Rentomatic</p>
+            <p className="text-lg font-bold">{invoice.companyName || "Rentomatic"}</p>
             <p className="text-xs text-[#6f7e79]">Secure rent payment</p>
           </div>
           <span className="rounded-full border border-[#cfe0da] bg-[#eef7f3] px-3 py-1 text-xs font-semibold text-[#1f6f5b]">
@@ -286,6 +309,9 @@ export default function PayPage() {
             <div>
               <p className="text-sm font-semibold text-[#1f6f5b]">{invoice.invoiceNumber || "Rent invoice"}</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight">{invoice.tenantName || "Tenant"}</h1>
+              <p className="mt-2 text-sm font-medium text-[#5d6d68]">
+                Payee: {invoice.companyName || "Rentomatic"}
+              </p>
               <p className="mt-2 text-[#5d6d68]">{invoice.tenantEmail || "Email not available"}</p>
             </div>
             <div
