@@ -78,7 +78,7 @@ export default function Home() {
               <textarea
                 value={inputValue}
                 onChange={(event) => setInputValue(event.target.value)}
-                placeholder="https://rent-reminder-dashboard.onrender.com/pay/your-token"
+                placeholder="https://your-rentomatic-portal.onrender.com/pay/your-token"
                 rows={4}
                 className="w-full resize-none rounded-lg border border-[#d5dfdc] bg-[#fbfcfc] px-4 py-3 text-sm text-[#17211f] outline-none transition placeholder:text-[#8a9894] focus:border-[#1f6f5b] focus:ring-2 focus:ring-[#d8ebe4]"
               />
