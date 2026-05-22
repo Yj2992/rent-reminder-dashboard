@@ -125,8 +125,16 @@ export default function PayPage() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [manualMessage, setManualMessage] = useState("")
 
-  const paid = invoice?.alreadyPaid || invoice?.status === "PAID"
-  const statusLabel = readableStatus(invoice?.status || "", Boolean(paid))
+  const manualReviewStatus = invoice?.manualPaymentStatus?.toUpperCase()
+  const manualReviewPending = manualReviewStatus === "SUBMITTED"
+  const manualReviewApproved = manualReviewStatus === "APPROVED"
+  const manualReviewDeclined = manualReviewStatus === "DECLINED"
+  const paid = invoice?.alreadyPaid || invoice?.status === "PAID" || manualReviewApproved
+  const statusLabel = manualReviewPending && !paid
+    ? "Under review"
+    : manualReviewApproved && !invoice?.alreadyPaid && invoice?.status !== "PAID"
+    ? "Approved"
+    : readableStatus(invoice?.status || "", Boolean(paid))
   const manualStatusLabel = readableManualStatus(invoice?.manualPaymentStatus)
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
@@ -318,6 +326,8 @@ export default function PayPage() {
               className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
                 paid
                   ? "bg-[#e9f8ef] text-[#207348]"
+                  : statusLabel === "Under review"
+                  ? "bg-[#eef7ff] text-[#145b8d]"
                   : statusLabel === "Failed"
                   ? "bg-[#fff0ed] text-[#a33d2f]"
                   : "bg-[#fff7df] text-[#80610d]"
@@ -337,8 +347,22 @@ export default function PayPage() {
             <h2 className="font-semibold">Before you pay</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <TrustStep title="Review invoice" text="Check the amount and due date." active />
-              <TrustStep title="Choose payment" text="Razorpay or bank transfer proof upload." active={!paid} />
-              <TrustStep title="Receipt email" text={paid ? "Payment is already complete." : "Sent after payment succeeds."} active={paid} />
+              <TrustStep
+                title="Choose payment"
+                text="Razorpay or bank transfer proof upload."
+                active={!paid && !manualReviewPending}
+              />
+              <TrustStep
+                title={manualReviewPending ? "Landlord review" : "Receipt email"}
+                text={
+                  paid
+                    ? "Payment is already complete."
+                    : manualReviewPending
+                    ? "Proof submitted. Waiting for landlord approval."
+                    : "Sent after payment succeeds."
+                }
+                active={paid || manualReviewPending}
+              />
             </div>
           </div>
 
@@ -363,6 +387,15 @@ export default function PayPage() {
               )}
               {invoice?.manualPaymentReviewNote && (
                 <p className="mt-2 text-sm text-[#5d6d68]">{invoice.manualPaymentReviewNote}</p>
+              )}
+              {manualReviewPending && (
+                <button
+                  type="button"
+                  onClick={refreshInvoice}
+                  className="mt-4 w-full rounded-lg border border-[#cfe0da] px-4 py-3 text-sm font-semibold text-[#1f6f5b] transition hover:bg-[#eef7f3]"
+                >
+                  Refresh review status
+                </button>
               )}
             </div>
           )}
@@ -396,7 +429,7 @@ export default function PayPage() {
             )}
           </div>
 
-          {!paid && (
+          {!paid && !manualReviewPending && (
             <>
               <div className="mt-6 grid grid-cols-2 gap-2 text-center text-xs font-semibold text-[#5d6d68]">
                 <span className="rounded bg-[#f1f5f3] px-2 py-2">UPI</span>
@@ -478,6 +511,23 @@ export default function PayPage() {
                 )}
               </div>
             </>
+          )}
+
+          {!paid && manualReviewPending && (
+            <div className="mt-6 rounded-lg border border-[#d8e6f5] bg-[#f4f9ff] p-4">
+              <p className="text-sm font-semibold text-[#145b8d]">Payment proof submitted</p>
+              <p className="mt-2 text-sm text-[#4c6579]">
+                Your {paymentMethodLabel(invoice.manualPaymentMethod || manualMethod)} proof has been uploaded successfully.
+                The landlord will review it before marking this invoice paid.
+              </p>
+              <button
+                type="button"
+                onClick={refreshInvoice}
+                className="mt-4 w-full rounded-lg bg-[#1f6f5b] px-4 py-3 font-semibold text-white transition hover:bg-[#185846] hover:shadow-md"
+              >
+                Check latest status
+              </button>
+            </div>
           )}
         </aside>
       </div>
