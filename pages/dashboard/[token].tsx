@@ -9,7 +9,8 @@ type Maintenance = { id: string; title: string; description: string; priority: s
 type Lease = { id: string; title: string; leaseEndOn: string; status: string }
 type Deposit = { originalAmountPaise: number; status: string }
 type DepositEntry = { id: string; entryType: string; amountPaise: number; description: string; occurredOn: string }
-type Dashboard = { tenantName?: string; tenantEmail: string; invoices: Invoice[]; maintenance: Maintenance[]; leases: Lease[]; deposit?: Deposit; depositEntries: DepositEntry[] }
+type VaultDocument = { id:string; category:string; title:string; fileName:string; mimeType:string; expiresOn?:string }
+type Dashboard = { tenantName?: string; tenantEmail: string; invoices: Invoice[]; maintenance: Maintenance[]; leases: Lease[]; deposit?: Deposit; depositEntries: DepositEntry[]; documents:VaultDocument[] }
 
 const money = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(paise / 100)
 const pill = (value: string) => value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
@@ -44,6 +45,7 @@ export default function TenantDashboard() {
     } catch (e) { setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not submit request") }
     finally { setSending(false) }
   }
+  async function openDocument(id:string){if(!token)return;try{const result=await axios.get(`${backend}/tenant/dashboard/${encodeURIComponent(token)}/documents/${encodeURIComponent(id)}`);window.open(result.data.url,"_blank","noopener,noreferrer")}catch{setError("Could not open this document. Please try again.")}}
 
   if (error && !data) return <Message title="Dashboard unavailable" text={error} />
   if (!data) return <Message title="Opening your dashboard" text="Loading bills, receipts and requests…" />
@@ -91,6 +93,9 @@ export default function TenantDashboard() {
 
           <Card title="Lease" subtitle="Agreement dates and renewal reminders">
             {data.leases.length ? data.leases.map(l => <div key={l.id} className="border-t border-[#edf1ef] py-3 first:border-0"><b>{l.title}</b><p className="text-sm text-[#61716c]">Ends {l.leaseEndOn} · {pill(l.status)}</p></div>) : <Empty text="No lease document shared yet." />}
+          </Card>
+          <Card title="Document vault" subtitle="Documents your property manager shared with you">
+            {data.documents?.length ? data.documents.map(d=><button key={d.id} onClick={()=>openDocument(d.id)} className="flex w-full items-center justify-between border-t py-3 text-left first:border-0"><span><b>{d.title}</b><span className="block text-sm text-[#61716c]">{d.category.replace(/_/g," ")} · {d.fileName}</span></span><span className="text-sm font-semibold text-[#1f6f5b]">Open</span></button>) : <Empty text="No documents have been shared with you." />}
           </Card>
 
           <Card title="Security deposit" subtitle="Receipts, deductions and refunds recorded by your manager">
