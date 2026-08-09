@@ -1,42 +1,23 @@
 import { useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import { useRouter } from "next/router"
-
-type Invoice = {
-  invoiceId: string
-  tenantName: string
-  tenantEmail?: string
-  companyName?: string
-  dueDate?: string
-  invoiceNumber?: string
-  amount: number
-  currency: string
-  status: string
-  publicUrl?: string
-  paymentUrl?: string
-  alreadyPaid?: boolean
-  bankName?: string
-  accountNumber?: string
-  branchName?: string
-  ifsc?: string
-  upi?: string
-  manualPaymentStatus?: string
-  manualPaymentReviewNote?: string
-  manualPaymentMethod?: string
-}
-
-type PaymentOrder = {
-  keyId: string
-  orderId: string
-  amount: number
-  currency: string
-  invoiceId: string
-  tenantName: string
-  description: string
-}
+import { TenantPortalInvoice, TenantPortalPaymentOrder } from "../../lib/contracts"
+import {
+  OWNER_BACKEND_BASE_URL,
+  PAYMENTS_CREATE_ORDER_PATH,
+  PAYMENTS_MANUAL_PROOF_PATH,
+  PAYMENTS_VERIFY_PATH,
+  PUBLIC_INVOICES_PATH,
+  canonicalPaymentStatus,
+  isManualPaymentApproved,
+  isManualPaymentDeclined,
+  isManualPaymentUnderReview,
+  readableManualPaymentStatus,
+  resolveInvoiceStatusLabel,
+} from "../../lib/sharedRules"
 
 const backendBaseUrl =
-  process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "https://ktor-sendgrid-backend.onrender.com"
+  process.env.NEXT_PUBLIC_BACKEND_BASE_URL || OWNER_BACKEND_BASE_URL
 
 function loadRazorpayScript(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -57,25 +38,6 @@ function formatAmount(amountPaise: number, currency: string) {
     currency,
     maximumFractionDigits: 2,
   }).format(amountPaise / 100)
-}
-
-function readableStatus(status: string, paid: boolean) {
-  if (paid) return "Paid"
-  if (status?.toUpperCase() === "FAILED") return "Failed"
-  return "Pending"
-}
-
-function readableManualStatus(status?: string) {
-  switch (status?.toUpperCase()) {
-    case "SUBMITTED":
-      return "Proof submitted"
-    case "APPROVED":
-      return "Proof approved"
-    case "DECLINED":
-      return "Proof declined"
-    default:
-      return ""
-  }
 }
 
 function paymentMethodLabel(method: string) {
@@ -118,24 +80,25 @@ export default function PayPage() {
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [uploadingProof, setUploadingProof] = useState(false)
-  const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [invoice, setInvoice] = useState<TenantPortalInvoice | null>(null)
   const [error, setError] = useState("")
   const [manualMethod, setManualMethod] = useState("UPI")
   const [manualNote, setManualNote] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [manualMessage, setManualMessage] = useState("")
 
-  const manualReviewStatus = invoice?.manualPaymentStatus?.toUpperCase()
-  const manualReviewPending = manualReviewStatus === "SUBMITTED"
-  const manualReviewApproved = manualReviewStatus === "APPROVED"
-  const manualReviewDeclined = manualReviewStatus === "DECLINED"
-  const paid = invoice?.alreadyPaid || invoice?.status === "PAID" || manualReviewApproved
-  const statusLabel = manualReviewPending && !paid
-    ? "Under review"
-    : manualReviewApproved && !invoice?.alreadyPaid && invoice?.status !== "PAID"
-    ? "Approved"
-    : readableStatus(invoice?.status || "", Boolean(paid))
-  const manualStatusLabel = readableManualStatus(invoice?.manualPaymentStatus)
+  const manualReviewStatus = invoice?.manualPaymentStatus?.trim().toUpperCase() || ""
+  const paymentStatus = canonicalPaymentStatus(invoice?.status)
+  const manualReviewPending = isManualPaymentUnderReview(invoice?.manualPaymentStatus)
+  const manualReviewApproved = isManualPaymentApproved(invoice?.manualPaymentStatus)
+  const manualReviewDeclined = isManualPaymentDeclined(invoice?.manualPaymentStatus)
+  const paid = Boolean(invoice?.alreadyPaid) || manualReviewApproved || paymentStatus === "PAID"
+  const statusLabel = resolveInvoiceStatusLabel({
+    paymentStatus: invoice?.status,
+    manualPaymentStatus: invoice?.manualPaymentStatus,
+    alreadyPaid: invoice?.alreadyPaid,
+  })
+  const manualStatusLabel = readableManualPaymentStatus(invoice?.manualPaymentStatus)
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
     [invoice]
@@ -146,7 +109,7 @@ export default function PayPage() {
     setLoading(true)
     setError("")
     axios
-      .get(`${backendBaseUrl}/public/invoices/${encodeURIComponent(token)}`)
+      .get(`${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`)
       .then((response) => setInvoice(response.data))
       .catch(() => setError("This payment link is invalid or no longer available."))
       .finally(() => setLoading(false))
@@ -157,7 +120,7 @@ export default function PayPage() {
     setLoading(true)
     setError("")
     try {
-      const response = await axios.get(`${backendBaseUrl}/public/invoices/${encodeURIComponent(token)}`)
+      const response = await axios.get(`${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`)
       setInvoice(response.data)
     } catch {
       setError("This payment link is invalid or no longer available.")
@@ -173,7 +136,7 @@ export default function PayPage() {
     setError("")
 
     try {
-      const createRes = await axios.post<PaymentOrder>(`${backendBaseUrl}/payments/create-order`, { token })
+      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token })
       const order = createRes.data
 
       await loadRazorpayScript()
@@ -187,7 +150,7 @@ export default function PayPage() {
         order_id: order.orderId,
         handler: async function (response: any) {
           try {
-            await axios.post(`${backendBaseUrl}/payments/verify`, {
+            await axios.post(`${backendBaseUrl}${PAYMENTS_VERIFY_PATH}`, {
               token,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
@@ -242,7 +205,7 @@ export default function PayPage() {
       }
       formData.append("proof", proofFile)
 
-      const response = await axios.post(`${backendBaseUrl}/payments/manual-proof`, formData)
+      const response = await axios.post(`${backendBaseUrl}${PAYMENTS_MANUAL_PROOF_PATH}`, formData)
       setManualMessage(response.data?.message || "Payment proof uploaded. Your landlord will review it.")
       setProofFile(null)
       setManualNote("")

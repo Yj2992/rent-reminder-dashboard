@@ -2,22 +2,11 @@ import axios from "axios"
 import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
-
-type Invoice = {
-  invoiceId: string
-  tenantName: string
-  tenantEmail?: string
-  dueDate?: string
-  invoiceNumber?: string
-  amount: number
-  currency: string
-  status: string
-  publicUrl?: string
-  alreadyPaid?: boolean
-}
+import { TenantPortalInvoice } from "../lib/contracts"
+import { OWNER_BACKEND_BASE_URL, PUBLIC_INVOICES_PATH } from "../lib/sharedRules"
 
 const backendBaseUrl =
-  process.env.NEXT_PUBLIC_BACKEND_BASE_URL || "https://ktor-sendgrid-backend.onrender.com"
+  process.env.NEXT_PUBLIC_BACKEND_BASE_URL || OWNER_BACKEND_BASE_URL
 
 function formatAmount(amountPaise: number, currency: string) {
   return new Intl.NumberFormat("en-IN", {
@@ -31,7 +20,7 @@ export default function Success() {
   const router = useRouter()
   const invoiceId = Array.isArray(router.query.invoice) ? router.query.invoice[0] : router.query.invoice
   const token = Array.isArray(router.query.token) ? router.query.token[0] : router.query.token
-  const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [invoice, setInvoice] = useState<TenantPortalInvoice | null>(null)
   const [loading, setLoading] = useState(Boolean(token))
   const [message, setMessage] = useState("Refreshing paid invoice...")
 
@@ -53,7 +42,9 @@ export default function Success() {
     async function loadPaidInvoice() {
       attempts += 1
       try {
-        const response = await axios.get<Invoice>(`${backendBaseUrl}/public/invoices/${encodeURIComponent(token)}`)
+        const response = await axios.get<TenantPortalInvoice>(
+          `${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`
+        )
         if (cancelled) return
         setInvoice(response.data)
 

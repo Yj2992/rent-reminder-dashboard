@@ -6,6 +6,9 @@
         "node": ">=18"
     },
     "scripts": {
+        "shared:sync-rules": "../AndroidStudioProjects/RentomaticKMP/gradlew -p ../AndroidStudioProjects/RentomaticKMP :shared:jsNodeProductionLibraryDistribution",
+        "shared:sync-contracts": "node ./scripts/syncSharedContracts.js",
+        "prebuild": "npm run shared:sync-rules && npm run shared:sync-contracts",
         "dev": "next dev",
         "build": "next build",
         "start": "next start"
@@ -13,10 +16,11 @@
     "dependencies": {
         "axios": "^1.4.0",
         "canvas-confetti": "^1.9.3",
-        "next": "13.x",
+        "next": "13.5.9",
         "razorpay": "^2.9.6",
         "react": "18.x",
-        "react-dom": "18.x"
+        "react-dom": "18.x",
+        "rentomatic-shared-rules-generated": "file:../AndroidStudioProjects/RentomaticKMP/shared/build/dist/js/productionLibrary"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.1.14",
