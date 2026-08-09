@@ -18,8 +18,7 @@
         "next": "13.5.9",
         "razorpay": "^2.9.6",
         "react": "18.x",
-        "react-dom": "18.x",
-        "rentomatic-shared-rules-generated": "file:../AndroidStudioProjects/RentomaticKMP/shared/build/dist/js/productionLibrary"
+        "react-dom": "18.x"
     },
     "devDependencies": {
         "@tailwindcss/cli": "^4.1.14",
