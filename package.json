@@ -8,7 +8,6 @@
     "scripts": {
         "shared:sync-rules": "../AndroidStudioProjects/RentomaticKMP/gradlew -p ../AndroidStudioProjects/RentomaticKMP :shared:jsNodeProductionLibraryDistribution",
         "shared:sync-contracts": "node ./scripts/syncSharedContracts.js",
-        "prebuild": "npm run shared:sync-rules && npm run shared:sync-contracts",
         "dev": "next dev",
         "build": "next build",
         "start": "next start"
