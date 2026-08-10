@@ -4,12 +4,12 @@ import {useRouter} from "next/router"
 import {tenantAuth} from "../lib/tenantAuth"
 import {OWNER_BACKEND_BASE_URL} from "../lib/sharedRules"
 
-type Invoice={id:string;invoice_number?:string;due_date?:string;amount:number;paid_amount?:number;credited_amount?:number;status:string;payment_token?:string}
+type Invoice={id:string;invoice_number?:string;due_date?:string;amount:number;paid_amount?:number;credited_amount?:number;refunded_amount?:number;late_fee_paise?:number;grace_period_days?:number;status:string;payment_token?:string}
 type Dashboard={rentId:string;tenantId?:string;tenantName?:string;tenantEmail:string;invoices:Invoice[];maintenance:any[];leases:any[];documents:any[];notifications:any[];deposit?:{originalAmountPaise:number};depositEntries:any[]}
 type Tab="home"|"bills"|"maintenance"|"documents"|"lease"
 const api=process.env.NEXT_PUBLIC_BACKEND_BASE_URL||OWNER_BACKEND_BASE_URL
 const money=(p:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(p/100)
-const outstanding=(invoice:Invoice)=>Math.max(0,invoice.amount-(invoice.paid_amount||0)-(invoice.credited_amount||0))
+const outstanding=(invoice:Invoice)=>Math.max(0,invoice.amount+(invoice.late_fee_paise||0)-(invoice.paid_amount||0)-(invoice.credited_amount||0))
 const title=(s:string)=>s.replace(/_/g," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())
 
 export default function TenantHome(){
@@ -44,7 +44,7 @@ export default function TenantHome(){
 function Card({title,children}:{title:string;children:React.ReactNode}){return <div className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="mb-4 text-xl font-bold">{title}</h2>{children}</div>}
 function Stat({label,value}:{label:string;value:string}){return <div className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><b className="mt-1 block text-2xl">{value}</b></div>}
 function Action({text,go}:{text:string;go:()=>void}){return <button onClick={go} className="rounded-xl border p-4 text-left font-semibold hover:border-[#17634f] hover:bg-emerald-50">{text}<span className="mt-2 block text-sm text-[#17634f]">View →</span></button>}
-function Bill({x,open}:{x:Invoice;open:()=>void}){const due=outstanding(x);return <div className="flex flex-wrap items-center justify-between gap-3 border-b py-4"><span><b>{x.invoice_number||"Rent invoice"}</b><small className="block text-slate-500">Due {x.due_date||"—"} · {title(x.status)}</small></span><span className="text-right"><b>{money(x.status==="PAID"?x.amount:due)}</b>{(x.paid_amount||x.credited_amount)?<small className="block text-slate-500">Original {money(x.amount)}</small>:null}</span>{x.payment_token&&<button onClick={open} className="rounded-lg bg-[#17634f] px-4 py-2 font-semibold text-white">{x.status==="PAID"?"Receipt":"Pay balance"}</button>}</div>}
+function Bill({x,open}:{x:Invoice;open:()=>void}){const due=outstanding(x);return <div className="flex flex-wrap items-center justify-between gap-3 border-b py-4"><span><b>{x.invoice_number||"Rent invoice"}</b><small className="block text-slate-500">Due {x.due_date||"—"} · {title(x.status)}{x.grace_period_days?` · ${x.grace_period_days}-day grace`:""}</small>{x.late_fee_paise?<small className="block text-amber-700">Includes {money(x.late_fee_paise)} late fee</small>:null}</span><span className="text-right"><b>{money(x.status==="PAID"?x.amount+(x.late_fee_paise||0):due)}</b>{(x.paid_amount||x.credited_amount||x.refunded_amount)?<small className="block text-slate-500">Original {money(x.amount)}{x.refunded_amount?` · refunded ${money(x.refunded_amount)}`:""}</small>:null}</span>{x.payment_token&&<button onClick={open} className="rounded-lg bg-[#17634f] px-4 py-2 font-semibold text-white">{x.status==="PAID"?"Receipt":"Pay balance"}</button>}</div>}
 function Empty({text}:{text:string}){return <p className="my-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{text}</p>}
 function Message({text}:{text:string}){return <main className="grid min-h-screen place-items-center bg-[#f5f7fb] p-6"><div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm"><b className="text-2xl text-[#17634f]">Rentomatic</b><p className="mt-3 text-slate-600">{text}</p></div></main>}
 function fileData(file:File){return new Promise<string>((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result));r.onerror=no;r.readAsDataURL(file)})}

@@ -86,6 +86,7 @@ export default function PayPage() {
   const [manualNote, setManualNote] = useState("")
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [manualMessage, setManualMessage] = useState("")
+  const [partialRupees,setPartialRupees]=useState("")
 
   const manualReviewStatus = invoice?.manualPaymentStatus?.trim().toUpperCase() || ""
   const paymentStatus = canonicalPaymentStatus(invoice?.status)
@@ -136,7 +137,9 @@ export default function PayPage() {
     setError("")
 
     try {
-      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token })
+      const requestedAmount=partialRupees?Math.round(Number(partialRupees)*100):undefined
+      if(requestedAmount!=null&&(!Number.isFinite(requestedAmount)||requestedAmount<=0||requestedAmount>invoice.amount))throw new Error("Enter a partial amount up to the outstanding balance.")
+      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token,amount:requestedAmount })
       const order = createRes.data
 
       await loadRazorpayScript()
@@ -340,6 +343,7 @@ export default function PayPage() {
           <p className="text-sm font-semibold text-[#5d6d68]">Amount payable</p>
           <p className="mt-2 text-4xl font-bold">{amountText}</p>
           <p className="mt-2 text-sm text-[#6f7e79]">Paid receipts are sent to the tenant email after successful verification.</p>
+          {!paid&&<label className="mt-5 block text-sm font-semibold text-[#5d6d68]">Pay a partial amount (optional)<input type="number" min="1" max={invoice.amount/100} step="0.01" value={partialRupees} onChange={e=>setPartialRupees(e.target.value)} placeholder={`Full balance ${amountText}`} className="mt-2 w-full rounded-lg border border-[#d5dfdc] px-4 py-3"/><span className="mt-1 block text-xs font-normal">Leave blank to pay the full outstanding balance.</span></label>}
 
           {manualStatusLabel && !paid && (
             <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
