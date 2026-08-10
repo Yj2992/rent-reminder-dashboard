@@ -13,6 +13,7 @@
         "start": "next start"
     },
     "dependencies": {
+        "@supabase/supabase-js": "^2.112.2",
         "axios": "^1.4.0",
         "canvas-confetti": "^1.9.3",
         "next": "13.5.9",
