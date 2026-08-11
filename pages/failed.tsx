@@ -16,8 +16,11 @@ export default function Failed() {
           <p className="text-sm font-semibold uppercase tracking-wide text-[#a33d2f]">Payment not completed</p>
           <h1 className="mt-2 text-3xl font-bold">Please try again</h1>
           <p className="mt-3 text-[#5d6d68]">
-            No successful payment was verified for this invoice. You can retry from the invoice page.
+            No successful payment was verified for this invoice. You have not been marked as paid, and it is safe to return to the bill before retrying.
           </p>
+          <div className="mt-4 rounded-lg border border-[#f2ded8] bg-[#fff8f6] p-4 text-sm text-[#704d46]">
+            <b>If money was deducted:</b> do not retry immediately. Wait for the bank or Razorpay status to settle, then check the tenant portal. Failed or refunded payments remain visible on the bill.
+          </div>
 
           {invoice && (
             <div className="mt-5 rounded-lg border border-[#e1e8e6] bg-[#f8faf9] p-4">
