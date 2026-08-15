@@ -1,65 +1,1013 @@
 import axios from "axios"
-import {FormEvent,useEffect,useMemo,useState} from "react"
-import {useRouter} from "next/router"
-import {tenantAuth} from "../lib/tenantAuth"
-import {OWNER_BACKEND_BASE_URL} from "../lib/sharedRules"
-import {tenantRoutes} from "../lib/tenantRoutes"
+import { FormEvent, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/router"
+import { tenantAuth } from "../lib/tenantAuth"
+import { OWNER_BACKEND_BASE_URL } from "../lib/sharedRules"
+import { tenantRoutes } from "../lib/tenantRoutes"
 
-type Invoice={id:string;invoice_number?:string;due_date?:string;amount:number;paid_amount?:number;credited_amount?:number;refunded_amount?:number;late_fee_paise?:number;grace_period_days?:number;status:string;payment_token?:string}
-type Dashboard={rentId:string;tenantId?:string;tenantName?:string;tenantEmail:string;invoices:Invoice[];maintenance:any[];leases:any[];documents:any[];notifications:any[];deposit?:{originalAmountPaise:number};depositEntries:any[]}
-type Attachment={id:string;fileName:string;stage:string;uploadedBy:string;url:string}
-type Household={id:string;rentId:string;name:string;relationship:string;phone?:string;email?:string}
-type ProfilePayload={profile:{fullName:string;phone?:string;emergencyContactName?:string;emergencyContactPhone?:string};household:Household[]}
-type Tab="home"|"bills"|"maintenance"|"documents"|"lease"|"profile"
-const api=process.env.NEXT_PUBLIC_BACKEND_BASE_URL||OWNER_BACKEND_BASE_URL
-axios.defaults.timeout=90_000
-const money=(p:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(p/100)
-const outstanding=(invoice:Invoice)=>Math.max(0,invoice.amount+(invoice.late_fee_paise||0)-(invoice.paid_amount||0)-(invoice.credited_amount||0))
-const title=(s:string)=>s.replace(/_/g," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())
-const retryableReadStatuses=new Set([429,502,503,504])
-async function authenticatedGet<T=any>(url:string,access:string){for(let attempt=0;attempt<3;attempt+=1){try{return await axios.get<T>(url,{timeout:90_000,headers:{Authorization:`Bearer ${access}`}})}catch(error){const status=axios.isAxiosError(error)?error.response?.status:undefined;if(attempt===2||!status||!retryableReadStatuses.has(status))throw error;await new Promise(resolve=>setTimeout(resolve,500*2**attempt))}}throw new Error("Request failed")}
+type Invoice = {
+  id: string
+  invoice_number?: string
+  due_date?: string
+  amount: number
+  paid_amount?: number
+  credited_amount?: number
+  refunded_amount?: number
+  late_fee_paise?: number
+  grace_period_days?: number
+  status: string
+  payment_token?: string
+}
 
-export default function TenantHome(){
- const router=useRouter(),[items,setItems]=useState<Dashboard[]>([]),[selected,setSelected]=useState(0),[tab,setTab]=useState<Tab>("home"),[error,setError]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false)
- const [issue,setIssue]=useState({title:"",description:"",priority:"MEDIUM"}),[photo,setPhoto]=useState<File|null>(null)
- const [vault,setVault]=useState({title:"",category:"OTHER"}),[vaultFile,setVaultFile]=useState<File|null>(null),[message,setMessage]=useState(""),[progress,setProgress]=useState(0)
- const [attachments,setAttachments]=useState<Record<string,Attachment[]>>({}),[profile,setProfile]=useState<ProfilePayload>({profile:{fullName:""},household:[]}),[member,setMember]=useState({name:"",relationship:"OTHER",phone:"",email:""})
- async function token(){return (await tenantAuth?.auth.getSession()).data.session?.access_token}
- async function load(){const access=await token();if(!access){router.replace("/login");return}try{const [r,p]=await Promise.all([authenticatedGet(`${api}${tenantRoutes.dashboard}`,access),authenticatedGet(`${api}${tenantRoutes.profile}`,access).catch(()=>({data:{profile:{fullName:""},household:[]}}))]);setItems(r.data.accounts);setProfile(p.data);setSelected(current=>Math.min(current,Math.max(0,r.data.accounts.length-1)));setError("")}catch(e){if(axios.isAxiosError(e)&&e.response?.status===401){await tenantAuth?.auth.signOut();router.replace("/login");return}setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):"Could not load your tenant portal")}finally{setLoading(false)}}
- useEffect(()=>{load()},[])
- const d=items[selected]
- const openBills=useMemo(()=>d?.invoices.filter(x=>["ISSUED","PARTIALLY_PAID","OVERDUE","PENDING","UNPAID"].includes(x.status))||[],[d]),paid=useMemo(()=>d?.invoices.filter(x=>x.status==="PAID")||[],[d])
- async function logout(){await tenantAuth?.auth.signOut();router.replace("/login")}
- async function logoutEverywhere(){if(!confirm("Sign out of Rentomatic on every device?"))return;await tenantAuth?.auth.signOut({scope:"global"});router.replace("/login")}
- async function report(e:FormEvent){e.preventDefault();if(!d)return;setBusy(true);setError("");setMessage("");try{const access=await token();let photoBase64:string|undefined;if(photo)photoBase64=await fileData(photo);await axios.post(`${api}${tenantRoutes.maintenance}`,{rentId:d.rentId,...issue,photoBase64,photoFileName:photo?.name,photoMimeType:photo?.type},{headers:{Authorization:`Bearer ${access}`}});setIssue({title:"",description:"",priority:"MEDIUM"});setPhoto(null);setMessage("Maintenance request submitted. Your property manager can now review it.");await load()}catch(e){setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):"Could not submit request")}finally{setBusy(false)}}
- async function openDoc(id:string){try{const access=await token();if(!access)throw new Error("Session expired");const r=await authenticatedGet(`${api}${tenantRoutes.document(id)}`,access);window.open(r.data.url,"_blank","noopener,noreferrer")}catch{setError("Could not open this document. Please retry.")}}
- async function loadAttachments(id:string){const access=await token();if(!access)return;try{const r=await authenticatedGet(`${api}${tenantRoutes.maintenanceAttachments(id)}`,access);setAttachments(x=>({...x,[id]:r.data}))}catch{setError("Could not load maintenance photos. Please retry.")}}
- async function uploadDoc(e:FormEvent){e.preventDefault();if(!d||!vaultFile)return;setBusy(true);setError("");setMessage("");try{if(!["application/pdf","image/jpeg","image/png","image/webp"].includes(vaultFile.type))throw new Error("Choose a PDF, JPG, PNG or WebP file.");if(vaultFile.size>10*1024*1024)throw new Error("File must be 10 MB or smaller.");const access=await token();setProgress(20);await axios.post(`${api}${tenantRoutes.documents}`,{rentId:d.rentId,title:vault.title,category:vault.category,fileName:vaultFile.name,mimeType:vaultFile.type,documentBase64:await fileData(vaultFile),tenantVisible:true},{headers:{Authorization:`Bearer ${access}`},onUploadProgress:e=>e.total&&setProgress(20+Math.round(e.loaded/e.total*80))});setVault({title:"",category:"OTHER"});setVaultFile(null);setProgress(100);setMessage("Document uploaded securely and shared with your property manager.");await load()}catch(e){setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):e instanceof Error?e.message:"Could not upload document")}finally{setBusy(false);setTimeout(()=>setProgress(0),800)}}
- async function replaceDoc(id:string,file:File|null){if(!file)return;setBusy(true);try{if(!["application/pdf","image/jpeg","image/png","image/webp"].includes(file.type)||file.size>10*1024*1024)throw new Error("Choose a PDF or image up to 10 MB.");const access=await token();setProgress(5);await axios.post(`${api}${tenantRoutes.documentReplace(id)}`,{fileName:file.name,mimeType:file.type,documentBase64:await fileData(file)},{headers:{Authorization:`Bearer ${access}`},onUploadProgress:e=>e.total&&setProgress(Math.round(e.loaded/e.total*100))});setMessage("Document replaced. Its revision history was preserved.");await load()}catch(e){setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):e instanceof Error?e.message:"Replacement failed")}finally{setBusy(false);setTimeout(()=>setProgress(0),800)}}
- async function saveProfile(e:FormEvent){e.preventDefault();const access=await token();if(!access)return;setBusy(true);try{await axios.post(`${api}${tenantRoutes.profile}`,profile.profile,{headers:{Authorization:`Bearer ${access}`}});setMessage("Profile saved.");await load()}catch(e){setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):"Could not save profile")}finally{setBusy(false)}}
- async function addMember(e:FormEvent){e.preventDefault();if(!d)return;const access=await token();if(!access)return;setBusy(true);try{await axios.post(`${api}${tenantRoutes.household}`,{...member,rentId:d.rentId},{headers:{Authorization:`Bearer ${access}`}});setMember({name:"",relationship:"OTHER",phone:"",email:""});setMessage("Household member added.");await load()}catch(e){setError(axios.isAxiosError(e)?String(e.response?.data?.message||e.message):"Could not add member")}finally{setBusy(false)}}
- async function removeMember(id:string){if(!confirm("Remove this household member?"))return;const access=await token();if(!access)return;await axios.delete(`${api}${tenantRoutes.householdMember(id)}`,{headers:{Authorization:`Bearer ${access}`}});await load()}
- async function reopen(id:string){const reason=prompt("Tell your property manager why this needs more work")?.trim();if(!reason)return;const access=await token();await axios.post(`${api}${tenantRoutes.maintenanceReopen(id)}`,{reason},{headers:{Authorization:`Bearer ${access}`}});setMessage("Request reopened and your property manager was notified.");await load()}
- async function acknowledgeLease(id:string){const note=prompt("Optional acknowledgement note")||undefined;const access=await token();await axios.post(`${api}${tenantRoutes.leaseAcknowledge(id)}`,{note},{headers:{Authorization:`Bearer ${access}`}});setMessage("Lease acknowledged.");await load()}
- async function openLease(id:string){try{const access=await token();if(!access)throw new Error("Session expired");const r=await authenticatedGet(`${api}${tenantRoutes.leaseDownload(id)}`,access);window.open(r.data.url,"_blank","noopener,noreferrer")}catch{setError("Could not open the lease. Please retry.")}}
- if(loading)return <Message text="Opening your tenant portal…"/>
- if(!d)return <Message text={error||"Your Gmail is not assigned to a Tenant ID yet. Ask your property manager to add it."}/>
- const balance=(d.deposit?.originalAmountPaise||0)+d.depositEntries.filter(x=>x.entryType==="ADJUSTMENT_CREDIT").reduce((s,x)=>s+x.amountPaise,0)-d.depositEntries.filter(x=>["DEDUCTION","REFUND","ADJUSTMENT_DEBIT"].includes(x.entryType)).reduce((s,x)=>s+x.amountPaise,0)
- return <main className="min-h-screen bg-[#f5f7fb] pb-20 text-[#172033] md:pb-0"><header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3"><div><b className="text-xl text-[#17634f]">Rentomatic</b><p className="text-xs text-slate-500">Tenant portal · {d.tenantId||"Tenant"}</p></div><button onClick={()=>setTab("profile")} className="rounded-full border px-4 py-2 text-sm font-semibold">Account</button></div></header>
- <div className="mx-auto grid max-w-7xl gap-6 px-4 py-5 md:grid-cols-[230px_1fr]"><aside className="hidden h-fit rounded-2xl border bg-white p-3 shadow-sm md:block"><label className="block p-2 text-xs font-bold uppercase tracking-wide text-slate-500">Your tenancy</label>{items.length>1?<select className="mb-3 w-full rounded-xl border p-3 font-semibold" value={selected} onChange={e=>{setSelected(Number(e.target.value));setTab("home")}}>{items.map((x,i)=><option value={i} key={`${x.tenantId}-${x.rentId}`}>{x.tenantId||"Tenant"} · {x.tenantName}</option>)}</select>:<div className="mb-3 rounded-xl bg-emerald-50 p-3"><b>{d.tenantId||"Tenant ID pending"}</b><p className="text-xs text-slate-600">{d.tenantName}</p></div>}{(["home","bills","maintenance","documents","lease","profile"] as Tab[]).map(x=><button key={x} onClick={()=>setTab(x)} className={`mb-1 w-full rounded-xl px-4 py-3 text-left font-semibold ${tab===x?"bg-[#17634f] text-white":"hover:bg-slate-50"}`}>{title(x)}</button>)}</aside>
- <section><div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm text-slate-500">Tenant ID <b className="text-[#17634f]">{d.tenantId||"Being assigned"}</b></p><h1 className="text-3xl font-bold">{tab==="home"?`Hello, ${d.tenantName||d.tenantEmail}`:title(tab)}</h1></div>{items.length>1&&<span className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700">{items.length} tenancies linked to this Gmail</span>}</div>{items.length>1&&<label className="mb-5 block rounded-2xl border bg-white p-3 shadow-sm md:hidden"><span className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Switch tenancy</span><select className="w-full rounded-xl border p-3 font-semibold" value={selected} onChange={e=>{setSelected(Number(e.target.value));setTab("home")}}>{items.map((x,i)=><option value={i} key={`${x.tenantId}-${x.rentId}`}>{x.tenantId||"Tenant"} · {x.tenantName}</option>)}</select></label>}{error&&<p className="mb-4 rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}{message&&<p className="mb-4 rounded-xl bg-emerald-50 p-4 text-emerald-800">{message}</p>}
- {tab==="home"&&<><div className="grid gap-4 sm:grid-cols-3"><Stat label="Amount due" value={money(openBills.reduce((sum,invoice)=>sum+outstanding(invoice),0))}/><Stat label="Open requests" value={String(d.maintenance.filter(x=>!["RESOLVED","CLOSED"].includes(x.status)).length)}/><Stat label="Deposit balance" value={d.deposit?money(balance):"Not recorded"}/></div>{d.notifications?.length>0&&<Card title="Recent updates">{d.notifications.slice(0,5).map((n:any)=><div key={n.id} className="border-b py-3"><b>{n.title}</b><p className="text-sm text-slate-600">{n.message}</p></div>)}</Card>}<Card title="Next actions"><div className="grid gap-3 sm:grid-cols-3"><Action text={openBills.length?`${openBills.length} bill${openBills.length>1?"s":""} need attention`:"Rent is up to date"} go={()=>setTab("bills")}/><Action text="Report or track maintenance" go={()=>setTab("maintenance")}/><Action text={`${d.documents.length} shared document${d.documents.length===1?"":"s"}`} go={()=>setTab("documents")}/></div></Card></>}
- {tab==="bills"&&<Card title="Bills & receipts"><h3 className="font-bold">To pay</h3>{openBills.length?openBills.map(x=><Bill key={x.id} x={x} open={()=>x.payment_token&&router.push(`/pay/${x.payment_token}`)}/>):<Empty text="Nothing is due."/>}<h3 className="mt-6 font-bold">Payment history</h3>{paid.length?paid.map(x=><Bill key={x.id} x={x} open={()=>x.payment_token&&router.push(`/pay/${x.payment_token}`)}/>):<Empty text="No receipts yet."/>}</Card>}
- {tab==="maintenance"&&<div className="grid gap-5 lg:grid-cols-2"><Card title="Report an issue"><form onSubmit={report} className="space-y-3"><input required className="input" placeholder="What needs attention?" value={issue.title} onChange={e=>setIssue({...issue,title:e.target.value})}/><textarea required rows={4} className="input" placeholder="Describe the issue and location" value={issue.description} onChange={e=>setIssue({...issue,description:e.target.value})}/><select className="input" value={issue.priority} onChange={e=>setIssue({...issue,priority:e.target.value})}><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option></select><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setPhoto(e.target.files?.[0]||null)}/><button disabled={busy} className="w-full rounded-xl bg-[#17634f] p-3 font-bold text-white">{busy?"Submitting…":"Submit request"}</button></form></Card><Card title="Request timeline">{d.maintenance.length?d.maintenance.map(x=><div key={x.id} className="border-b py-5"><div className="flex justify-between gap-3"><b>{x.title}</b><span className="h-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[#17634f]">{title(x.status)}</span></div><p className="mt-1 text-sm text-slate-500">{x.description}</p><div className="mt-3 border-l-2 border-emerald-200 pl-4 text-sm"><p><b>Reported</b>{x.createdAt?` · ${new Date(x.createdAt).toLocaleString()}`:""}</p>{x.ownerNote&&<p className="mt-3"><b>Manager update</b><span className="block text-slate-600">{x.ownerNote}</span></p>}{x.appointmentAt&&<p className="mt-3"><b>Appointment</b> · {new Date(x.appointmentAt).toLocaleString()}</p>}{x.resolvedAt&&<p className="mt-3"><b>Resolved</b> · {new Date(x.resolvedAt).toLocaleString()}</p>}</div><button onClick={()=>loadAttachments(x.id)} className="mt-3 rounded-lg border px-3 py-2 text-sm font-semibold">Show before/after photos</button>{attachments[x.id]&&<div className="mt-3 grid grid-cols-2 gap-3">{attachments[x.id].map(p=><a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border bg-white"><img src={p.url} alt={`${p.stage} maintenance`} className="h-32 w-full object-cover"/><span className="block p-2 text-xs font-bold">{title(p.stage)} · {p.uploadedBy.toLowerCase()}</span></a>)}{!attachments[x.id].length&&<p className="col-span-2 text-sm text-slate-500">No photos added yet.</p>}</div>}{["RESOLVED","CLOSED"].includes(x.status)&&<button onClick={()=>reopen(x.id)} className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800">Still not fixed? Reopen</button>}</div>):<Empty text="No requests yet."/>}</Card></div>}
- {tab==="documents"&&<div className="grid gap-5 lg:grid-cols-2"><Card title="Document vault">{progress>0&&<div className="mb-4"><div className="mb-1 flex justify-between text-xs font-semibold"><span>Secure upload</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded bg-slate-200"><div className="h-full bg-[#17634f] transition-all" style={{width:`${progress}%`}}/></div></div>}{d.documents.length?d.documents.map(x=><div key={x.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-4"><button onClick={()=>openDoc(x.id)} className="min-w-0 flex-1 text-left"><b>{x.title}</b><small className="block truncate text-slate-500">{title(x.category)} · {x.fileName} · revision {x.revision||1}</small><small className="block text-slate-500">Uploaded by {x.uploadedBy==="TENANT"?"you":"landlord"}{x.expiresOn?` · expires ${x.expiresOn}`:""}</small></button><div className="flex gap-2"><button onClick={()=>openDoc(x.id)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Preview</button>{x.uploadedBy==="TENANT"&&<label className="cursor-pointer rounded-lg border px-3 py-2 text-sm font-semibold">Replace<input type="file" className="hidden" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>replaceDoc(x.id,e.target.files?.[0]||null)}/></label>}</div></div>):<Empty text="No documents have been shared yet."/>}</Card><Card title="Upload a document"><form onSubmit={uploadDoc} className="space-y-3"><input required className="input" placeholder="Document title" value={vault.title} onChange={e=>setVault({...vault,title:e.target.value})}/><select className="input" value={vault.category} onChange={e=>setVault({...vault,category:e.target.value})}><option value="IDENTITY_PAN">PAN card</option><option value="IDENTITY_AADHAAR">Aadhaar card</option><option value="ADDRESS_PROOF">Address proof</option><option value="PAYMENT">Payment or receipt</option><option value="OTHER">Other document</option></select><input required type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="input" onChange={e=>setVaultFile(e.target.files?.[0]||null)}/><p className="text-xs text-slate-500">PDF, JPG, PNG or WebP · maximum 10 MB.</p><button disabled={busy} className="w-full rounded-xl bg-[#17634f] p-3 font-bold text-white">{busy?`Uploading ${progress}%`:"Upload securely"}</button></form></Card></div>}
- {tab==="lease"&&<div className="grid gap-5 lg:grid-cols-2"><Card title="Lease details">{d.leases.length?d.leases.map(x=><div key={x.id} className="border-b py-3"><b>{x.title}</b><p className="text-sm text-slate-500">Ends {x.leaseEndOn} · {title(x.status)}</p><button onClick={()=>openLease(x.id)} className="mt-3 rounded-lg border px-4 py-2 text-sm font-semibold">Review agreement</button>{x.acknowledgedAt?<p className="mt-2 text-sm font-semibold text-emerald-700">Acknowledged {new Date(x.acknowledgedAt).toLocaleDateString()}</p>:x.acknowledgementRequired!==false&&<button onClick={()=>acknowledgeLease(x.id)} className="ml-2 mt-3 rounded-lg bg-[#17634f] px-4 py-2 text-sm font-semibold text-white">Acknowledge agreement</button>}</div>):<Empty text="No lease details shared."/>}</Card><Card title="Security deposit"><div className="flex justify-between"><span>Current balance</span><b>{d.deposit?money(balance):"Not recorded"}</b></div>{d.depositEntries.map(x=><div key={x.id} className="mt-3 flex justify-between border-t pt-3 text-sm"><span>{title(x.entryType)}<small className="block text-slate-500">{x.description}</small></span><b>{money(x.amountPaise)}</b></div>)}</Card></div>}
- {tab==="profile"&&<div className="grid gap-5 lg:grid-cols-2"><Card title="Your profile"><form onSubmit={saveProfile} className="space-y-3"><label className="text-sm font-semibold">Full name<input required className="input mt-1" value={profile.profile.fullName} onChange={e=>setProfile({...profile,profile:{...profile.profile,fullName:e.target.value}})}/></label><label className="text-sm font-semibold">Phone<input type="tel" className="input mt-1" value={profile.profile.phone||""} onChange={e=>setProfile({...profile,profile:{...profile.profile,phone:e.target.value}})}/></label><label className="text-sm font-semibold">Emergency contact<input className="input mt-1" value={profile.profile.emergencyContactName||""} onChange={e=>setProfile({...profile,profile:{...profile.profile,emergencyContactName:e.target.value}})}/></label><label className="text-sm font-semibold">Emergency phone<input type="tel" className="input mt-1" value={profile.profile.emergencyContactPhone||""} onChange={e=>setProfile({...profile,profile:{...profile.profile,emergencyContactPhone:e.target.value}})}/></label><button disabled={busy} className="w-full rounded-xl bg-[#17634f] p-3 font-bold text-white">Save profile</button></form></Card><Card title="Household members"><form onSubmit={addMember} className="grid gap-3 sm:grid-cols-2"><input required className="input" placeholder="Member name" value={member.name} onChange={e=>setMember({...member,name:e.target.value})}/><select className="input" value={member.relationship} onChange={e=>setMember({...member,relationship:e.target.value})}><option>FAMILY</option><option>SPOUSE</option><option>CHILD</option><option>ROOMMATE</option><option>OTHER</option></select><input className="input" placeholder="Phone (optional)" value={member.phone} onChange={e=>setMember({...member,phone:e.target.value})}/><input type="email" className="input" placeholder="Email (optional)" value={member.email} onChange={e=>setMember({...member,email:e.target.value})}/><button disabled={busy} className="rounded-xl bg-[#17634f] p-3 font-bold text-white sm:col-span-2">Add member</button></form><div className="mt-4">{profile.household.filter(x=>x.rentId===d.rentId).map(x=><div key={x.id} className="flex justify-between border-t py-3"><span><b>{x.name}</b><small className="block text-slate-500">{title(x.relationship)}{x.phone?` · ${x.phone}`:""}</small></span><button onClick={()=>removeMember(x.id)} className="text-sm font-semibold text-red-700">Remove</button></div>)}</div><div className="mt-5 border-t pt-5"><h3 className="font-bold">Sessions</h3><p className="mt-1 text-sm text-slate-500">You are signed in on this device as {d.tenantEmail}.</p><div className="mt-3 flex flex-wrap gap-2"><button onClick={logout} className="rounded-lg border px-4 py-2 font-semibold">Sign out here</button><button onClick={logoutEverywhere} className="rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-700">Sign out everywhere</button></div></div></Card></div>}
- </section></div><nav aria-label="Tenant portal" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t bg-white px-1 py-2 shadow-[0_-8px_30px_rgba(15,23,42,.08)] md:hidden">{(["home","bills","maintenance","documents","lease","profile"] as Tab[]).map(x=><button key={x} onClick={()=>setTab(x)} className={`min-w-0 rounded-xl px-0.5 py-2 text-[10px] font-bold ${tab===x?"bg-emerald-50 text-[#17634f]":"text-slate-500"}`}>{x==="maintenance"?"Repairs":x==="documents"?"Vault":title(x)}</button>)}</nav></main>}
+type Dashboard = {
+  rentId: string
+  tenantId?: string
+  tenantName?: string
+  tenantEmail: string
+  invoices: Invoice[]
+  maintenance: any[]
+  leases: any[]
+  documents: any[]
+  notifications: any[]
+  deposit?: { originalAmountPaise: number }
+  depositEntries: any[]
+}
 
-function Card({title,children}:{title:string;children:React.ReactNode}){return <div className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="mb-4 text-xl font-bold">{title}</h2>{children}</div>}
-function Stat({label,value}:{label:string;value:string}){return <div className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><b className="mt-1 block text-2xl">{value}</b></div>}
-function Action({text,go}:{text:string;go:()=>void}){return <button onClick={go} className="rounded-xl border p-4 text-left font-semibold hover:border-[#17634f] hover:bg-emerald-50">{text}<span className="mt-2 block text-sm text-[#17634f]">View →</span></button>}
-function Bill({x,open}:{x:Invoice;open:()=>void}){const due=outstanding(x),refunded=(x.refunded_amount||0)>0,failed=x.status==="PAYMENT_FAILED";return <div className={`flex flex-wrap items-center justify-between gap-3 border-b py-4 ${failed?"rounded-xl bg-red-50 px-3":""}`}><span><b>{x.invoice_number||"Rent invoice"}</b><small className="block text-slate-500">Due {x.due_date||"—"} · {failed?"Payment failed — no charge confirmed":title(x.status)}{x.grace_period_days?` · ${x.grace_period_days}-day grace`:""}</small>{x.late_fee_paise?<small className="block text-amber-700">Includes {money(x.late_fee_paise)} late fee</small>:null}{refunded&&<small className="mt-1 block font-semibold text-blue-700">Refund processed: {money(x.refunded_amount||0)}. Your balance has been recalculated.</small>}</span><span className="text-right"><b>{money(x.status==="PAID"?x.amount+(x.late_fee_paise||0):due)}</b>{(x.paid_amount||x.credited_amount||x.refunded_amount)?<small className="block text-slate-500">Original {money(x.amount)} · paid {money(x.paid_amount||0)}{refunded?` · refunded ${money(x.refunded_amount||0)}`:""}</small>:null}</span>{x.payment_token&&<button onClick={open} className="rounded-lg bg-[#17634f] px-4 py-2 font-semibold text-white">{x.status==="PAID"?"Receipt":failed?"Retry safely":"Pay balance"}</button>}</div>}
-function Empty({text}:{text:string}){return <p className="my-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{text}</p>}
-function Message({text}:{text:string}){return <main className="grid min-h-screen place-items-center bg-[#f5f7fb] p-6"><div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm"><b className="text-2xl text-[#17634f]">Rentomatic</b><p className="mt-3 text-slate-600">{text}</p></div></main>}
-function fileData(file:File){return new Promise<string>((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result));r.onerror=no;r.readAsDataURL(file)})}
+type Attachment = {
+  id: string
+  fileName: string
+  stage: string
+  uploadedBy: string
+  url: string
+}
+
+type Household = {
+  id: string
+  rentId: string
+  name: string
+  relationship: string
+  phone?: string
+  email?: string
+}
+
+type ProfilePayload = {
+  profile: {
+    fullName: string
+    phone?: string
+    emergencyContactName?: string
+    emergencyContactPhone?: string
+  }
+  household: Household[]
+}
+
+type Tab = "home" | "bills" | "maintenance" | "documents" | "lease" | "profile"
+
+const api = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || OWNER_BACKEND_BASE_URL
+axios.defaults.timeout = 90_000
+
+const money = (p: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(p / 100)
+
+const outstanding = (invoice: Invoice) =>
+  Math.max(0, invoice.amount + (invoice.late_fee_paise || 0) - (invoice.paid_amount || 0) - (invoice.credited_amount || 0))
+
+const title = (s: string) =>
+  s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+
+const retryableReadStatuses = new Set([429, 502, 503, 504])
+
+async function authenticatedGet<T = any>(url: string, access: string) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await axios.get<T>(url, { timeout: 90_000, headers: { Authorization: `Bearer ${access}` } })
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (attempt === 2 || !status || !retryableReadStatuses.has(status)) throw error
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt))
+    }
+  }
+  throw new Error("Request failed")
+}
+
+export default function TenantHome() {
+  const router = useRouter()
+  const [items, setItems] = useState<Dashboard[]>([])
+  const [selected, setSelected] = useState(0)
+  const [tab, setTab] = useState<Tab>("home")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  const [issue, setIssue] = useState({ title: "", description: "", priority: "MEDIUM" })
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [vault, setVault] = useState({ title: "", category: "OTHER" })
+  const [vaultFile, setVaultFile] = useState<File | null>(null)
+  const [message, setMessage] = useState("")
+  const [progress, setProgress] = useState(0)
+  const [attachments, setAttachments] = useState<Record<string, Attachment[]>>({})
+  const [profile, setProfile] = useState<ProfilePayload>({ profile: { fullName: "" }, household: [] })
+  const [member, setMember] = useState({ name: "", relationship: "OTHER", phone: "", email: "" })
+
+  async function token() {
+    return (await tenantAuth?.auth.getSession()).data.session?.access_token
+  }
+
+  async function load() {
+    const access = await token()
+    if (!access) {
+      router.replace("/login")
+      return
+    }
+    try {
+      const [r, p] = await Promise.all([
+        authenticatedGet(`${api}${tenantRoutes.dashboard}`, access),
+        authenticatedGet(`${api}${tenantRoutes.profile}`, access).catch(() => ({
+          data: { profile: { fullName: "" }, household: [] },
+        })),
+      ])
+      setItems(r.data.accounts)
+      setProfile(p.data)
+      setSelected((current) => Math.min(current, Math.max(0, r.data.accounts.length - 1)))
+      setError("")
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 401) {
+        await tenantAuth?.auth.signOut()
+        router.replace("/login")
+        return
+      }
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not load your tenant portal")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const d = items[selected]
+  const openBills = useMemo(
+    () => d?.invoices.filter((x) => ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PENDING", "UNPAID"].includes(x.status)) || [],
+    [d]
+  )
+  const paid = useMemo(() => d?.invoices.filter((x) => x.status === "PAID") || [], [d])
+
+  async function logout() {
+    await tenantAuth?.auth.signOut()
+    router.replace("/login")
+  }
+
+  async function logoutEverywhere() {
+    if (!confirm("Sign out of Rentomatic on every device?")) return
+    await tenantAuth?.auth.signOut({ scope: "global" })
+    router.replace("/login")
+  }
+
+  async function report(e: FormEvent) {
+    e.preventDefault()
+    if (!d) return
+    setBusy(true)
+    setError("")
+    setMessage("")
+    try {
+      const access = await token()
+      let photoBase64: string | undefined
+      if (photo) photoBase64 = await fileData(photo)
+      await axios.post(
+        `${api}${tenantRoutes.maintenance}`,
+        { rentId: d.rentId, ...issue, photoBase64, photoFileName: photo?.name, photoMimeType: photo?.type },
+        { headers: { Authorization: `Bearer ${access}` } }
+      )
+      setIssue({ title: "", description: "", priority: "MEDIUM" })
+      setPhoto(null)
+      setMessage("Maintenance request submitted. Your property manager can now review it.")
+      await load()
+    } catch (e) {
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not submit request")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function openDoc(id: string) {
+    try {
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      const r = await authenticatedGet(`${api}${tenantRoutes.document(id)}`, access)
+      window.open(r.data.url, "_blank", "noopener,noreferrer")
+    } catch {
+      setError("Could not open this document. Please retry.")
+    }
+  }
+
+  async function loadAttachments(id: string) {
+    const access = await token()
+    if (!access) return
+    try {
+      const r = await authenticatedGet(`${api}${tenantRoutes.maintenanceAttachments(id)}`, access)
+      setAttachments((x) => ({ ...x, [id]: r.data }))
+    } catch {
+      setError("Could not load maintenance photos. Please retry.")
+    }
+  }
+
+  async function uploadDoc(e: FormEvent) {
+    e.preventDefault()
+    if (!d || !vaultFile) return
+    setBusy(true)
+    setError("")
+    setMessage("")
+    try {
+      if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(vaultFile.type))
+        throw new Error("Choose a PDF, JPG, PNG or WebP file.")
+      if (vaultFile.size > 10 * 1024 * 1024) throw new Error("File must be 10 MB or smaller.")
+      const access = await token()
+      setProgress(20)
+      await axios.post(
+        `${api}${tenantRoutes.documents}`,
+        {
+          rentId: d.rentId,
+          title: vault.title,
+          category: vault.category,
+          fileName: vaultFile.name,
+          mimeType: vaultFile.type,
+          documentBase64: await fileData(vaultFile),
+          tenantVisible: true,
+        },
+        {
+          headers: { Authorization: `Bearer ${access}` },
+          onUploadProgress: (e) => e.total && setProgress(20 + Math.round((e.loaded / e.total) * 80)),
+        }
+      )
+      setVault({ title: "", category: "OTHER" })
+      setVaultFile(null)
+      setProgress(100)
+      setMessage("Document uploaded securely and shared with your property manager.")
+      await load()
+    } catch (e) {
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : e instanceof Error ? e.message : "Could not upload document")
+    } finally {
+      setBusy(false)
+      setTimeout(() => setProgress(0), 800)
+    }
+  }
+
+  async function replaceDoc(id: string, file: File | null) {
+    if (!file) return
+    setBusy(true)
+    try {
+      if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024)
+        throw new Error("Choose a PDF or image up to 10 MB.")
+      const access = await token()
+      setProgress(5)
+      await axios.post(
+        `${api}${tenantRoutes.documentReplace(id)}`,
+        { fileName: file.name, mimeType: file.type, documentBase64: await fileData(file) },
+        {
+          headers: { Authorization: `Bearer ${access}` },
+          onUploadProgress: (e) => e.total && setProgress(Math.round((e.loaded / e.total) * 100)),
+        }
+      )
+      setMessage("Document replaced. Its revision history was preserved.")
+      await load()
+    } catch (e) {
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : e instanceof Error ? e.message : "Replacement failed")
+    } finally {
+      setBusy(false)
+      setTimeout(() => setProgress(0), 800)
+    }
+  }
+
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault()
+    const access = await token()
+    if (!access) return
+    setBusy(true)
+    try {
+      await axios.post(`${api}${tenantRoutes.profile}`, profile.profile, { headers: { Authorization: `Bearer ${access}` } })
+      setMessage("Profile saved.")
+      await load()
+    } catch (e) {
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not save profile")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function addMember(e: FormEvent) {
+    e.preventDefault()
+    if (!d) return
+    const access = await token()
+    if (!access) return
+    setBusy(true)
+    try {
+      await axios.post(`${api}${tenantRoutes.household}`, { ...member, rentId: d.rentId }, { headers: { Authorization: `Bearer ${access}` } })
+      setMember({ name: "", relationship: "OTHER", phone: "", email: "" })
+      setMessage("Household member added.")
+      await load()
+    } catch (e) {
+      setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not add member")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeMember(id: string) {
+    if (!confirm("Remove this household member?")) return
+    const access = await token()
+    if (!access) return
+    await axios.delete(`${api}${tenantRoutes.householdMember(id)}`, { headers: { Authorization: `Bearer ${access}` } })
+    await load()
+  }
+
+  async function reopen(id: string) {
+    const reason = prompt("Tell your property manager why this needs more work")?.trim()
+    if (!reason) return
+    const access = await token()
+    await axios.post(`${api}${tenantRoutes.maintenanceReopen(id)}`, { reason }, { headers: { Authorization: `Bearer ${access}` } })
+    setMessage("Request reopened and your property manager was notified.")
+    await load()
+  }
+
+  async function acknowledgeLease(id: string) {
+    const note = prompt("Optional acknowledgement note") || undefined
+    const access = await token()
+    await axios.post(`${api}${tenantRoutes.leaseAcknowledge(id)}`, { note }, { headers: { Authorization: `Bearer ${access}` } })
+    setMessage("Lease acknowledged.")
+    await load()
+  }
+
+  async function openLease(id: string) {
+    try {
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      const r = await authenticatedGet(`${api}${tenantRoutes.leaseDownload(id)}`, access)
+      window.open(r.data.url, "_blank", "noopener,noreferrer")
+    } catch {
+      setError("Could not open the lease. Please retry.")
+    }
+  }
+
+  if (loading) return <Message text="Opening your tenant portal…" />
+  if (!d)
+    return (
+      <Message
+        text={
+          error || "Your Gmail is not assigned to a Tenant ID yet. Ask your property manager to add it."
+        }
+      />
+    )
+
+  const balance =
+    (d.deposit?.originalAmountPaise || 0) +
+    d.depositEntries.filter((x) => x.entryType === "ADJUSTMENT_CREDIT").reduce((s, x) => s + x.amountPaise, 0) -
+    d.depositEntries.filter((x) => ["DEDUCTION", "REFUND", "ADJUSTMENT_DEBIT"].includes(x.entryType)).reduce((s, x) => s + x.amountPaise, 0)
+
+  return (
+    <main className="min-h-screen bg-[#f4f7fb] pb-20 text-[#182133] md:pb-0">
+      <header className="sticky top-0 z-30 border-b border-[#ccd5e4] bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#2151c5] font-bold text-white shadow-sm">
+              R
+            </span>
+            <div>
+              <b className="text-xl font-bold tracking-tight text-[#182133]">Rentomatic</b>
+              <p className="text-xs text-[#60708d]">Tenant portal · {d.tenantId || "Tenant"}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setTab("profile")}
+            className="rounded-[14px] border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb] hover:border-[#b4c2d6]"
+          >
+            Account
+          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 md:grid-cols-[240px_1fr]">
+        <aside className="hidden h-fit rounded-[20px] border border-[#ccd5e4] bg-white p-3.5 shadow-sm md:block">
+          <label className="block p-2 text-xs font-bold uppercase tracking-wider text-[#60708d]">Your tenancy</label>
+          {items.length > 1 ? (
+            <select
+              className="mb-3 w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-2.5 text-sm font-semibold text-[#182133] outline-none focus:border-[#2151c5]"
+              value={selected}
+              onChange={(e) => {
+                setSelected(Number(e.target.value))
+                setTab("home")
+              }}
+            >
+              {items.map((x, i) => (
+                <option value={i} key={`${x.tenantId}-${x.rentId}`}>
+                  {x.tenantId || "Tenant"} · {x.tenantName}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="mb-3 rounded-[14px] border border-[#dde7ff] bg-[#f4f8ff] p-3">
+              <b className="text-sm font-bold text-[#2151c5]">{d.tenantId || "Tenant ID pending"}</b>
+              <p className="text-xs text-[#60708d]">{d.tenantName}</p>
+            </div>
+          )}
+          {(["home", "bills", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
+            <button
+              key={x}
+              onClick={() => setTab(x)}
+              className={`mb-1 w-full rounded-[12px] px-3.5 py-2.5 text-left text-sm font-semibold transition ${
+                tab === x ? "bg-[#2151c5] text-white shadow-sm" : "text-[#182133] hover:bg-[#f4f7fb]"
+              }`}
+            >
+              {title(x)}
+            </button>
+          ))}
+        </aside>
+
+        <section>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#60708d]">
+                Tenant ID <b className="text-[#2151c5]">{d.tenantId || "Being assigned"}</b>
+              </p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-[#182133]">
+                {tab === "home" ? `Hello, ${d.tenantName || d.tenantEmail}` : title(tab)}
+              </h1>
+            </div>
+            {items.length > 1 && (
+              <span className="rounded-full border border-[#dde7ff] bg-[#dde7ff] px-3.5 py-1 text-xs font-semibold text-[#1a42a5]">
+                {items.length} tenancies linked to this Gmail
+              </span>
+            )}
+          </div>
+
+          {items.length > 1 && (
+            <label className="mb-5 block rounded-[20px] border border-[#ccd5e4] bg-white p-3.5 shadow-sm md:hidden">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#60708d]">Switch tenancy</span>
+              <select
+                className="w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-3 font-semibold text-[#182133]"
+                value={selected}
+                onChange={(e) => {
+                  setSelected(Number(e.target.value))
+                  setTab("home")
+                }}
+              >
+                {items.map((x, i) => (
+                  <option value={i} key={`${x.tenantId}-${x.rentId}`}>
+                    {x.tenantId || "Tenant"} · {x.tenantName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {error && (
+            <p className="mb-4 rounded-[14px] border border-[#f8c8c2] bg-[#fee4e1] p-4 text-sm font-medium text-[#9b2a1a]">
+              {error}
+            </p>
+          )}
+
+          {message && (
+            <p className="mb-4 rounded-[14px] border border-[#b0e5d8] bg-[#d7f4ec] p-4 text-sm font-medium text-[#096352]">
+              {message}
+            </p>
+          )}
+
+          {tab === "home" && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Stat label="Amount due" value={money(openBills.reduce((sum, invoice) => sum + outstanding(invoice), 0))} accent />
+                <Stat label="Open requests" value={String(d.maintenance.filter((x) => !["RESOLVED", "CLOSED"].includes(x.status)).length)} />
+                <Stat label="Deposit balance" value={d.deposit ? money(balance) : "Not recorded"} />
+              </div>
+              {d.notifications?.length > 0 && (
+                <Card title="Recent updates">
+                  {d.notifications.slice(0, 5).map((n: any) => (
+                    <div key={n.id} className="border-b border-[#ccd5e4]/50 py-3 last:border-b-0">
+                      <b className="font-bold text-[#182133]">{n.title}</b>
+                      <p className="text-sm text-[#60708d]">{n.message}</p>
+                    </div>
+                  ))}
+                </Card>
+              )}
+              <Card title="Next actions">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Action
+                    text={openBills.length ? `${openBills.length} bill${openBills.length > 1 ? "s" : ""} need attention` : "Rent is up to date"}
+                    go={() => setTab("bills")}
+                  />
+                  <Action text="Report or track maintenance" go={() => setTab("maintenance")} />
+                  <Action text={`${d.documents.length} shared document${d.documents.length === 1 ? "" : "s"}`} go={() => setTab("documents")} />
+                </div>
+              </Card>
+            </>
+          )}
+
+          {tab === "bills" && (
+            <Card title="Bills & receipts">
+              <h3 className="text-base font-bold text-[#182133]">To pay</h3>
+              {openBills.length ? (
+                openBills.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
+              ) : (
+                <Empty text="Nothing is due." />
+              )}
+              <h3 className="mt-8 text-base font-bold text-[#182133]">Payment history</h3>
+              {paid.length ? (
+                paid.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
+              ) : (
+                <Empty text="No receipts yet." />
+              )}
+            </Card>
+          )}
+
+          {tab === "maintenance" && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card title="Report an issue">
+                <form onSubmit={report} className="space-y-3.5">
+                  <input
+                    required
+                    className="input"
+                    placeholder="What needs attention?"
+                    value={issue.title}
+                    onChange={(e) => setIssue({ ...issue, title: e.target.value })}
+                  />
+                  <textarea
+                    required
+                    rows={4}
+                    className="input"
+                    placeholder="Describe the issue and location"
+                    value={issue.description}
+                    onChange={(e) => setIssue({ ...issue, description: e.target.value })}
+                  />
+                  <select className="input" value={issue.priority} onChange={(e) => setIssue({ ...issue, priority: e.target.value })}>
+                    <option value="LOW">Low priority</option>
+                    <option value="MEDIUM">Medium priority</option>
+                    <option value="HIGH">High priority</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="input file:mr-3 file:rounded-lg file:border-0 file:bg-[#dde7ff] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#1a42a5]"
+                    onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+                  />
+                  <button disabled={busy} className="btn-primary w-full">
+                    {busy ? "Submitting…" : "Submit request"}
+                  </button>
+                </form>
+              </Card>
+              <Card title="Request timeline">
+                {d.maintenance.length ? (
+                  d.maintenance.map((x) => (
+                    <div key={x.id} className="border-b border-[#ccd5e4] py-5 last:border-b-0">
+                      <div className="flex justify-between gap-3">
+                        <b className="font-bold text-[#182133]">{x.title}</b>
+                        <span className="h-fit rounded-full border border-[#b0e5d8] bg-[#d7f4ec] px-3 py-0.5 text-xs font-semibold text-[#096352]">
+                          {title(x.status)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#60708d]">{x.description}</p>
+                      <div className="mt-3 border-l-2 border-[#2151c5] pl-4 text-xs">
+                        <p>
+                          <b>Reported</b>
+                          {x.createdAt ? ` · ${new Date(x.createdAt).toLocaleString()}` : ""}
+                        </p>
+                        {x.ownerNote && (
+                          <p className="mt-2">
+                            <b>Manager update:</b> <span className="text-[#60708d]">{x.ownerNote}</span>
+                          </p>
+                        )}
+                        {x.appointmentAt && (
+                          <p className="mt-2">
+                            <b>Appointment:</b> {new Date(x.appointmentAt).toLocaleString()}
+                          </p>
+                        )}
+                        {x.resolvedAt && (
+                          <p className="mt-2 text-[#096352]">
+                            <b>Resolved:</b> {new Date(x.resolvedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => loadAttachments(x.id)}
+                        className="mt-3 rounded-[12px] border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133] transition hover:bg-[#f4f7fb]"
+                      >
+                        Show before/after photos
+                      </button>
+                      {attachments[x.id] && (
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          {attachments[x.id].map((p) => (
+                            <a
+                              key={p.id}
+                              href={p.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="overflow-hidden rounded-[14px] border border-[#ccd5e4] bg-white shadow-sm"
+                            >
+                              <img src={p.url} alt={`${p.stage} maintenance`} className="h-32 w-full object-cover" />
+                              <span className="block p-2 text-xs font-bold text-[#182133]">
+                                {title(p.stage)} · {p.uploadedBy.toLowerCase()}
+                              </span>
+                            </a>
+                          ))}
+                          {!attachments[x.id].length && <p className="col-span-2 text-xs text-[#60708d]">No photos added yet.</p>}
+                        </div>
+                      )}
+                      {["RESOLVED", "CLOSED"].includes(x.status) && (
+                        <button
+                          onClick={() => reopen(x.id)}
+                          className="mt-3 rounded-[12px] border border-[#f5d9aa] bg-[#ffe6bf] px-3 py-1.5 text-xs font-semibold text-[#82530c]"
+                        >
+                          Still not fixed? Reopen
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <Empty text="No requests yet." />
+                )}
+              </Card>
+            </div>
+          )}
+
+          {tab === "documents" && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card title="Document vault">
+                {progress > 0 && (
+                  <div className="mb-4">
+                    <div className="mb-1 flex justify-between text-xs font-semibold text-[#182133]">
+                      <span>Secure upload</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-[#e7eef8]">
+                      <div className="h-full bg-[#2151c5] transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                )}
+                {d.documents.length ? (
+                  d.documents.map((x) => (
+                    <div key={x.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ccd5e4] py-4 last:border-b-0">
+                      <button onClick={() => openDoc(x.id)} className="min-w-0 flex-1 text-left">
+                        <b className="font-bold text-[#182133]">{x.title}</b>
+                        <small className="block truncate text-xs text-[#60708d]">
+                          {title(x.category)} · {x.fileName} · revision {x.revision || 1}
+                        </small>
+                        <small className="block text-xs text-[#60708d]">
+                          Uploaded by {x.uploadedBy === "TENANT" ? "you" : "landlord"}
+                          {x.expiresOn ? ` · expires ${x.expiresOn}` : ""}
+                        </small>
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openDoc(x.id)}
+                          className="rounded-[12px] border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133] transition hover:bg-[#f4f7fb]"
+                        >
+                          Preview
+                        </button>
+                        {x.uploadedBy === "TENANT" && (
+                          <label className="cursor-pointer rounded-[12px] border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133] transition hover:bg-[#f4f7fb]">
+                            Replace
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="application/pdf,image/jpeg,image/png,image/webp"
+                              onChange={(e) => replaceDoc(x.id, e.target.files?.[0] || null)}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <Empty text="No documents have been shared yet." />
+                )}
+              </Card>
+              <Card title="Upload a document">
+                <form onSubmit={uploadDoc} className="space-y-3.5">
+                  <input
+                    required
+                    className="input"
+                    placeholder="Document title"
+                    value={vault.title}
+                    onChange={(e) => setVault({ ...vault, title: e.target.value })}
+                  />
+                  <select className="input" value={vault.category} onChange={(e) => setVault({ ...vault, category: e.target.value })}>
+                    <option value="IDENTITY_PAN">PAN card</option>
+                    <option value="IDENTITY_AADHAAR">Aadhaar card</option>
+                    <option value="ADDRESS_PROOF">Address proof</option>
+                    <option value="PAYMENT">Payment or receipt</option>
+                    <option value="OTHER">Other document</option>
+                  </select>
+                  <input
+                    required
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="input file:mr-3 file:rounded-lg file:border-0 file:bg-[#dde7ff] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#1a42a5]"
+                    onChange={(e) => setVaultFile(e.target.files?.[0] || null)}
+                  />
+                  <p className="text-xs text-[#60708d]">PDF, JPG, PNG or WebP · maximum 10 MB.</p>
+                  <button disabled={busy} className="btn-primary w-full">
+                    {busy ? `Uploading ${progress}%` : "Upload securely"}
+                  </button>
+                </form>
+              </Card>
+            </div>
+          )}
+
+          {tab === "lease" && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card title="Lease details">
+                {d.leases.length ? (
+                  d.leases.map((x) => (
+                    <div key={x.id} className="border-b border-[#ccd5e4] py-3 last:border-b-0">
+                      <b className="font-bold text-[#182133]">{x.title}</b>
+                      <p className="mt-1 text-sm text-[#60708d]">
+                        Ends {x.leaseEndOn} · {title(x.status)}
+                      </p>
+                      <button
+                        onClick={() => openLease(x.id)}
+                        className="mt-3 rounded-[12px] border border-[#ccd5e4] bg-white px-4 py-2 text-xs font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb]"
+                      >
+                        Review agreement
+                      </button>
+                      {x.acknowledgedAt ? (
+                        <p className="mt-2 text-xs font-semibold text-[#096352]">
+                          Acknowledged {new Date(x.acknowledgedAt).toLocaleDateString()}
+                        </p>
+                      ) : (
+                        x.acknowledgementRequired !== false && (
+                          <button
+                            onClick={() => acknowledgeLease(x.id)}
+                            className="ml-2 mt-3 rounded-[12px] bg-[#2151c5] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1a43a7]"
+                          >
+                            Acknowledge agreement
+                          </button>
+                        )
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <Empty text="No lease details shared." />
+                )}
+              </Card>
+              <Card title="Security deposit">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#60708d]">Current balance</span>
+                  <b className="text-lg font-bold text-[#182133]">{d.deposit ? money(balance) : "Not recorded"}</b>
+                </div>
+                {d.depositEntries.map((x) => (
+                  <div key={x.id} className="mt-3 flex justify-between border-t border-[#ccd5e4]/50 pt-3 text-xs">
+                    <span>
+                      <b className="text-[#182133]">{title(x.entryType)}</b>
+                      <small className="block text-[#60708d]">{x.description}</small>
+                    </span>
+                    <b className="text-[#182133]">{money(x.amountPaise)}</b>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {tab === "profile" && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card title="Your profile">
+                <form onSubmit={saveProfile} className="space-y-3.5">
+                  <label className="block text-sm font-semibold text-[#182133]">
+                    Full name
+                    <input
+                      required
+                      className="input mt-1"
+                      value={profile.profile.fullName}
+                      onChange={(e) => setProfile({ ...profile, profile: { ...profile.profile, fullName: e.target.value } })}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-[#182133]">
+                    Phone
+                    <input
+                      type="tel"
+                      className="input mt-1"
+                      value={profile.profile.phone || ""}
+                      onChange={(e) => setProfile({ ...profile, profile: { ...profile.profile, phone: e.target.value } })}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-[#182133]">
+                    Emergency contact
+                    <input
+                      className="input mt-1"
+                      value={profile.profile.emergencyContactName || ""}
+                      onChange={(e) =>
+                        setProfile({ ...profile, profile: { ...profile.profile, emergencyContactName: e.target.value } })
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-[#182133]">
+                    Emergency phone
+                    <input
+                      type="tel"
+                      className="input mt-1"
+                      value={profile.profile.emergencyContactPhone || ""}
+                      onChange={(e) =>
+                        setProfile({ ...profile, profile: { ...profile.profile, emergencyContactPhone: e.target.value } })
+                      }
+                    />
+                  </label>
+                  <button disabled={busy} className="btn-primary w-full">
+                    Save profile
+                  </button>
+                </form>
+              </Card>
+              <Card title="Household members">
+                <form onSubmit={addMember} className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    required
+                    className="input"
+                    placeholder="Member name"
+                    value={member.name}
+                    onChange={(e) => setMember({ ...member, name: e.target.value })}
+                  />
+                  <select className="input" value={member.relationship} onChange={(e) => setMember({ ...member, relationship: e.target.value })}>
+                    <option value="FAMILY">Family</option>
+                    <option value="SPOUSE">Spouse</option>
+                    <option value="CHILD">Child</option>
+                    <option value="ROOMMATE">Roommate</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  <input
+                    className="input"
+                    placeholder="Phone (optional)"
+                    value={member.phone}
+                    onChange={(e) => setMember({ ...member, phone: e.target.value })}
+                  />
+                  <input
+                    type="email"
+                    className="input"
+                    placeholder="Email (optional)"
+                    value={member.email}
+                    onChange={(e) => setMember({ ...member, email: e.target.value })}
+                  />
+                  <button disabled={busy} className="btn-primary sm:col-span-2">
+                    Add member
+                  </button>
+                </form>
+                <div className="mt-4">
+                  {profile.household
+                    .filter((x) => x.rentId === d.rentId)
+                    .map((x) => (
+                      <div key={x.id} className="flex justify-between border-t border-[#ccd5e4]/50 py-3 text-xs">
+                        <span>
+                          <b className="text-[#182133]">{x.name}</b>
+                          <small className="block text-[#60708d]">
+                            {title(x.relationship)}
+                            {x.phone ? ` · ${x.phone}` : ""}
+                          </small>
+                        </span>
+                        <button onClick={() => removeMember(x.id)} className="font-semibold text-[#c53b27] hover:underline">
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                </div>
+                <div className="mt-5 border-t border-[#ccd5e4] pt-5">
+                  <h3 className="text-sm font-bold text-[#182133]">Sessions</h3>
+                  <p className="mt-1 text-xs text-[#60708d]">You are signed in on this device as {d.tenantEmail}.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={logout}
+                      className="rounded-[12px] border border-[#ccd5e4] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb]"
+                    >
+                      Sign out here
+                    </button>
+                    <button
+                      onClick={logoutEverywhere}
+                      className="rounded-[12px] border border-[#f8c8c2] bg-[#fee4e1] px-3.5 py-1.5 text-xs font-semibold text-[#9b2a1a] transition hover:bg-[#fcd2cc]"
+                    >
+                      Sign out everywhere
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <nav
+        aria-label="Tenant portal"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-[#ccd5e4] bg-white px-1 py-2 shadow-[0_-8px_30px_rgba(24,33,51,0.06)] md:hidden"
+      >
+        {(["home", "bills", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
+          <button
+            key={x}
+            onClick={() => setTab(x)}
+            className={`min-w-0 rounded-[10px] px-0.5 py-1.5 text-[10px] font-bold transition ${
+              tab === x ? "bg-[#dde7ff] text-[#1a42a5]" : "text-[#60708d]"
+            }`}
+          >
+            {x === "maintenance" ? "Repairs" : x === "documents" ? "Vault" : title(x)}
+          </button>
+        ))}
+      </nav>
+    </main>
+  )
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-5 rounded-[20px] border border-[#ccd5e4] bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="mb-4 text-lg font-bold tracking-tight text-[#182133]">{title}</h2>
+      {children}
+    </div>
+  )
+}
+
+function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-[18px] border border-[#ccd5e4] bg-white p-5 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wider text-[#60708d]">{label}</p>
+      <b className={`mt-1.5 block text-2xl font-bold tracking-tight ${accent ? "text-[#2151c5]" : "text-[#182133]"}`}>{value}</b>
+    </div>
+  )
+}
+
+function Action({ text, go }: { text: string; go: () => void }) {
+  return (
+    <button
+      onClick={go}
+      className="rounded-[16px] border border-[#ccd5e4] bg-[#fcfdff] p-4 text-left font-semibold shadow-sm transition hover:border-[#2151c5] hover:bg-[#f4f8ff]"
+    >
+      <span className="block text-sm text-[#182133]">{text}</span>
+      <span className="mt-2 block text-xs font-bold text-[#2151c5]">View →</span>
+    </button>
+  )
+}
+
+function Bill({ x, open }: { x: Invoice; open: () => void }) {
+  const due = outstanding(x)
+  const refunded = (x.refunded_amount || 0) > 0
+  const failed = x.status === "PAYMENT_FAILED"
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 border-b border-[#ccd5e4] py-4 last:border-b-0 ${
+        failed ? "rounded-[14px] bg-[#fee4e1] p-3 border-0" : ""
+      }`}
+    >
+      <span>
+        <b className="font-bold text-[#182133]">{x.invoice_number || "Rent invoice"}</b>
+        <small className="block text-xs text-[#60708d]">
+          Due {x.due_date || "—"} · {failed ? "Payment failed — no charge confirmed" : title(x.status)}
+          {x.grace_period_days ? ` · ${x.grace_period_days}-day grace` : ""}
+        </small>
+        {x.late_fee_paise ? <small className="block text-xs font-semibold text-[#82530c]">Includes {money(x.late_fee_paise)} late fee</small> : null}
+        {refunded && (
+          <small className="mt-1 block text-xs font-semibold text-[#1a42a5]">
+            Refund processed: {money(x.refunded_amount || 0)}. Your balance has been recalculated.
+          </small>
+        )}
+      </span>
+      <span className="text-right">
+        <b className="text-base font-bold text-[#182133]">{money(x.status === "PAID" ? x.amount + (x.late_fee_paise || 0) : due)}</b>
+        {x.paid_amount || x.credited_amount || x.refunded_amount ? (
+          <small className="block text-xs text-[#60708d]">
+            Original {money(x.amount)} · paid {money(x.paid_amount || 0)}
+            {refunded ? ` · refunded ${money(x.refunded_amount || 0)}` : ""}
+          </small>
+        ) : null}
+      </span>
+      {x.payment_token && (
+        <button
+          onClick={open}
+          className={`rounded-[12px] px-4 py-2 text-xs font-bold text-white shadow-sm transition ${
+            x.status === "PAID" ? "bg-[#0f8a73] hover:bg-[#0c725f]" : failed ? "bg-[#c53b27] hover:bg-[#a82d1c]" : "bg-[#2151c5] hover:bg-[#1a43a7]"
+          }`}
+        >
+          {x.status === "PAID" ? "Receipt" : failed ? "Retry safely" : "Pay balance"}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Empty({ text }: { text: string }) {
+  return <p className="my-3 rounded-[14px] bg-[#e7eef8] p-4 text-xs font-medium text-[#60708d]">{text}</p>
+}
+
+function Message({ text }: { text: string }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f4f7fb] p-6 text-[#182133]">
+      <div className="max-w-md rounded-[20px] border border-[#ccd5e4] bg-white p-8 text-center shadow-sm">
+        <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#2151c5] text-lg font-bold text-white shadow-sm">
+          R
+        </span>
+        <b className="mt-3 block text-2xl font-bold tracking-tight text-[#182133]">Rentomatic</b>
+        <p className="mt-2 text-sm text-[#60708d]">{text}</p>
+      </div>
+    </main>
+  )
+}
+
+function fileData(file: File) {
+  return new Promise<string>((ok, no) => {
+    const r = new FileReader()
+    r.onload = () => ok(String(r.result))
+    r.onerror = no
+    r.readAsDataURL(file)
+  })
+}

@@ -4,7 +4,7 @@ import { tenantAuth, tenantAuthConfigured } from "../lib/tenantAuth"
 
 export default function TenantLogin() {
   const router = useRouter()
-  const [mode, setMode] = useState<"login"|"activate">("login")
+  const [mode, setMode] = useState<"login" | "activate">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -43,19 +43,90 @@ export default function TenantLogin() {
     if (oauthError) setError(oauthError.message)
   }
 
-  return <main className="grid min-h-screen place-items-center bg-[#f4f7f6] p-5"><section className="w-full max-w-md rounded-2xl border border-[#dce5e2] bg-white p-7 shadow-sm">
-    <p className="text-sm font-bold text-[#1f6f5b]">Rentomatic tenant portal</p>
-    <h1 className="mt-2 text-3xl font-bold">{mode==="login"?"Tenant login":"Activate your account"}</h1>
-    <p className="mt-2 text-sm text-[#61716c]">Use the email registered by your property manager. Yahoo, Outlook, Gmail and other providers are supported.</p>
-    {!tenantAuthConfigured&&<p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Tenant authentication is awaiting its Supabase public key.</p>}
-    {error&&<p className="mt-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">{error}</p>}
-    <button onClick={google} disabled={!tenantAuthConfigured} className="mt-5 w-full rounded-xl border px-4 py-3 font-semibold disabled:opacity-50">Continue with Google</button>
-    <div className="my-5 flex items-center gap-3 text-xs text-[#788681]"><span className="h-px flex-1 bg-[#dce5e2]"/>OR<span className="h-px flex-1 bg-[#dce5e2]"/></div>
-    <form onSubmit={submit} className="space-y-4">
-      <label className="block text-sm font-semibold">Email address<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="tenant@example.com" className="mt-1 w-full rounded-xl border px-4 py-3" required/></label>
-      <label className="block text-sm font-semibold">Password<input type="password" minLength={8} value={password} onChange={event=>setPassword(event.target.value)} className="mt-1 w-full rounded-xl border px-4 py-3" required/></label>
-      <button disabled={busy||!tenantAuthConfigured} className="w-full rounded-xl bg-[#1f6f5b] px-4 py-3 font-semibold text-white disabled:opacity-50">{busy?"Please wait…":mode==="login"?"Sign in":"Create tenant account"}</button>
-    </form>
-    <button onClick={()=>{setError("");setMode(mode==="login"?"activate":"login")}} className="mt-5 w-full text-sm font-semibold text-[#1f6f5b]">{mode==="login"?"First time? Activate account":"Back to sign in"}</button>
-  </section></main>
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f4f7fb] p-5 text-[#182133]">
+      <section className="w-full max-w-md rounded-[20px] border border-[#ccd5e4] bg-white p-7 shadow-sm sm:p-8">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#2151c5] font-bold text-white shadow-sm">
+            R
+          </span>
+          <p className="text-xs font-bold uppercase tracking-wider text-[#2151c5]">Rentomatic tenant portal</p>
+        </div>
+
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-[#182133] sm:text-3xl">
+          {mode === "login" ? "Tenant login" : "Activate your account"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[#60708d]">
+          Use the email registered by your property manager. Yahoo, Outlook, Gmail and other providers are supported.
+        </p>
+
+        {!tenantAuthConfigured && (
+          <p className="mt-4 rounded-[14px] border border-[#f5d9aa] bg-[#ffe6bf] p-3 text-xs font-medium text-[#82530c]">
+            Tenant authentication is awaiting its Supabase public key.
+          </p>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-[14px] border border-[#c4d7fc] bg-[#dde7ff] p-3 text-xs font-medium text-[#1a42a5]">
+            {error}
+          </p>
+        )}
+
+        <button
+          onClick={google}
+          disabled={!tenantAuthConfigured}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#ccd5e4] bg-white px-4 py-3 text-sm font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb] hover:border-[#b4c2d6] disabled:opacity-50"
+        >
+          Continue with Google
+        </button>
+
+        <div className="my-5 flex items-center gap-3 text-xs font-medium text-[#60708d]">
+          <span className="h-px flex-1 bg-[#ccd5e4]" />
+          OR
+          <span className="h-px flex-1 bg-[#ccd5e4]" />
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block text-sm font-semibold text-[#182133]">
+            Email address
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="tenant@example.com"
+              className="mt-1 w-full rounded-[14px] border border-[#ccd5e4] bg-white px-4 py-2.5 text-sm text-[#182133] outline-none transition placeholder:text-[#60708d] focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff]"
+              required
+            />
+          </label>
+          <label className="block text-sm font-semibold text-[#182133]">
+            Password
+            <input
+              type="password"
+              minLength={8}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="mt-1 w-full rounded-[14px] border border-[#ccd5e4] bg-white px-4 py-2.5 text-sm text-[#182133] outline-none transition placeholder:text-[#60708d] focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff]"
+              required
+            />
+          </label>
+          <button
+            disabled={busy || !tenantAuthConfigured}
+            className="w-full rounded-[14px] bg-[#2151c5] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a43a7] disabled:opacity-50"
+          >
+            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create tenant account"}
+          </button>
+        </form>
+
+        <button
+          onClick={() => {
+            setError("")
+            setMode(mode === "login" ? "activate" : "login")
+          }}
+          className="mt-5 w-full text-center text-xs font-semibold text-[#2151c5] transition hover:underline"
+        >
+          {mode === "login" ? "First time? Activate account" : "Back to sign in"}
+        </button>
+      </section>
+    </main>
+  )
 }
