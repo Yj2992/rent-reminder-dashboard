@@ -76,7 +76,16 @@ function paymentErrorMessage(error: unknown) {
 export default function PayPage() {
   const router = useRouter()
   const { tenantId } = router.query
-  const token = Array.isArray(tenantId) ? tenantId[0] : tenantId
+  const rawToken = Array.isArray(tenantId) ? tenantId[0] : tenantId
+  const token = useMemo(() => {
+    if (!rawToken) return ""
+    const decoded = decodeURIComponent(rawToken)
+    return decoded
+      .replace(/^\{\{1\}\}/, "")
+      .replace(/^%7B%7B1%7D%7D/i, "")
+      .replace(/^\{\{.*?\}\}/, "")
+      .trim()
+  }, [rawToken])
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
   const [uploadingProof, setUploadingProof] = useState(false)
