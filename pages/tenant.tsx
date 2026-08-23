@@ -74,6 +74,30 @@ const outstanding = (invoice: Invoice) =>
 const title = (s: string) =>
   s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 
+const maintenanceStatusLabel = (status: string) => ({
+  ISSUE_REPORTED: "Reported",
+  OPEN: "Reported",
+  TRIAGED: "Reviewed",
+  ACKNOWLEDGED: "Reviewed",
+  WORK_ORDER_CREATED: "Work order created",
+  VENDOR_ASSIGNED: "Technician assigned",
+  ASSIGNED: "Technician assigned",
+  SCHEDULED: "Visit scheduled",
+  IN_PROGRESS: "Work in progress",
+  INSPECTION_PENDING: "Awaiting inspection",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+  REOPENED: "Reopened",
+} as Record<string, string>)[status] || title(status)
+
+const maintenanceStage = (status: string) => {
+  if (["RESOLVED", "CLOSED"].includes(status)) return 4
+  if (["IN_PROGRESS", "INSPECTION_PENDING"].includes(status)) return 3
+  if (["WORK_ORDER_CREATED", "VENDOR_ASSIGNED", "ASSIGNED", "SCHEDULED"].includes(status)) return 2
+  if (["TRIAGED", "ACKNOWLEDGED"].includes(status)) return 1
+  return 0
+}
+
 const retryableReadStatuses = new Set([429, 502, 503, 504])
 
 async function authenticatedGet<T = any>(url: string, access: string) {
@@ -628,7 +652,8 @@ export default function TenantHome() {
                   <div className="space-y-4">
                     {d.maintenance.map((x) => {
                       const isClosed = ["RESOLVED", "CLOSED"].includes(x.status)
-                      const isProgress = ["IN_PROGRESS", "SCHEDULED", "ASSIGNED"].includes(x.status)
+                      const isProgress = ["TRIAGED", "ACKNOWLEDGED", "WORK_ORDER_CREATED", "VENDOR_ASSIGNED", "IN_PROGRESS", "INSPECTION_PENDING", "SCHEDULED", "ASSIGNED", "REOPENED"].includes(x.status)
+                      const stage = maintenanceStage(x.status)
 
                       return (
                         <div key={x.id} className="rounded-2xl border border-[#dbe4f0] bg-white p-4 shadow-sm transition hover:border-[#b4cbef]">
@@ -660,11 +685,20 @@ export default function TenantHome() {
                                   : "bg-blue-100 text-blue-800"
                               }`}
                             >
-                              {title(x.status || "REPORTED")}
+                              {maintenanceStatusLabel(x.status || "ISSUE_REPORTED")}
                             </span>
                           </div>
 
                           <p className="mt-2 text-xs text-[#60708d]">{x.description}</p>
+
+                          <div className="mt-3 grid grid-cols-5 gap-1" aria-label={`Maintenance progress: ${maintenanceStatusLabel(x.status)}`}>
+                            {["Reported", "Reviewed", "Assigned", "Repair", "Done"].map((label, index) => (
+                              <div key={label} className="min-w-0 text-center">
+                                <div className={`h-1.5 rounded-full ${index <= stage ? "bg-[#2151c5]" : "bg-[#dbe4f0]"}`} />
+                                <span className={`mt-1 block truncate text-[9px] font-semibold ${index <= stage ? "text-[#1a42a5]" : "text-[#8491a6]"}`}>{label}</span>
+                              </div>
+                            ))}
+                          </div>
 
                           <div className="mt-3 border-l-2 border-[#1f6ad8] pl-3 text-xs space-y-1.5 text-[#60708d]">
                             <p>
