@@ -2,10 +2,10 @@
 
 @layer components {
   .input { 
-    @apply w-full rounded-xl border border-[#d8d8d0] bg-white px-4 py-2.5 text-sm text-[#17231f] outline-none transition placeholder:text-[#737b76] focus:border-[#16745c] focus:ring-2 focus:ring-[#dcece6];
+    @apply w-full rounded-xl border border-[#ccd5e4] bg-white px-4 py-2.5 text-sm text-[#182133] outline-none transition placeholder:text-[#60708d] focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff];
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl bg-[#16745c] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#105c49] focus:outline-none focus:ring-2 focus:ring-[#cce4dc] focus:ring-offset-2 disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-xl bg-[#2151c5] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a43a7] focus:outline-none focus:ring-2 focus:ring-[#dde7ff] focus:ring-offset-2 disabled:opacity-50;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-[14px] border border-[#ccd5e4] bg-white px-5 py-2.5 text-sm font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb] hover:border-[#b4c2d6] focus:outline-none disabled:opacity-50;
@@ -17,26 +17,26 @@
 
 :root {
   color-scheme: light;
-  --rm-bg: #f6f5f1;
-  --rm-bg-strong: #ebeae4;
+  --rm-bg: #f4f7fb;
+  --rm-bg-strong: #e7eef8;
   --rm-panel: #ffffff;
   --rm-panel-solid: #ffffff;
-  --rm-line: #d8d8d0;
-  --rm-line-strong: #bfc3bb;
-  --rm-navy: #17231f;
-  --rm-navy-soft: #25362f;
-  --rm-text: #17231f;
-  --rm-muted: #68716c;
-  --rm-accent: #16745c;
-  --rm-accent-strong: #105c49;
-  --rm-accent-soft: #dcece6;
+  --rm-line: #ccd5e4;
+  --rm-line-strong: #b4c2d6;
+  --rm-navy: #182133;
+  --rm-navy-soft: #202d46;
+  --rm-text: #182133;
+  --rm-muted: #60708d;
+  --rm-accent: #2151c5;
+  --rm-accent-strong: #1a43a7;
+  --rm-accent-soft: #dde7ff;
   --rm-mint: #0f8a73;
   --rm-mint-soft: #d7f4ec;
   --rm-amber: #b57717;
   --rm-amber-soft: #ffe6bf;
   --rm-coral: #c53b27;
   --rm-coral-soft: #fee4e1;
-  --rm-shadow: 0 10px 30px -20px rgba(23, 35, 31, 0.34), 0 1px 2px rgba(23, 35, 31, 0.05);
+  --rm-shadow: 0 4px 20px -2px rgba(24, 33, 51, 0.05), 0 2px 6px -1px rgba(24, 33, 51, 0.03);
 }
 
 html,
@@ -86,7 +86,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(22, 116, 92, 0.24);
+  outline: 3px solid rgba(33, 81, 197, 0.25);
   outline-offset: 2px;
 }
 
@@ -107,6 +107,6 @@ textarea {
 }
 
 ::selection {
-  background: rgba(22, 116, 92, 0.18);
-  color: #17231f;
+  background: rgba(33, 81, 197, 0.18);
+  color: #182133;
 }

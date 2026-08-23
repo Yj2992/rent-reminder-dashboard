@@ -415,20 +415,20 @@ export default function TenantHome() {
 
   return (
     <main className="min-h-screen bg-[var(--rm-bg)] pb-24 text-[var(--rm-text)] md:pb-0">
-      <header className="sticky top-0 z-30 border-b border-[#d8d8d0] bg-[#f6f5f1]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-[#ccd5e4] bg-[#f4f7fb]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#173c31] font-bold text-white shadow-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2151c5] font-bold text-white shadow-sm">
               R
             </span>
             <div>
-              <b className="text-lg font-semibold tracking-tight text-[#17231f]">Rentomatic</b>
+              <b className="text-lg font-semibold tracking-tight text-[#182133]">Rentomatic</b>
               <p className="text-xs text-[#68716c]">Tenant ID · {d.tenantId || "Pending"}</p>
             </div>
           </div>
           <button
             onClick={() => setTab("profile")}
-            className="rounded-xl border border-[#d8d8d0] bg-white px-4 py-2 text-sm font-semibold text-[#173c31] shadow-sm transition hover:border-[#9fb3aa] hover:bg-[#edf4f1]"
+            className="rounded-xl border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:border-[#b4c2d6] hover:bg-[#f0f6ff]"
           >
             Account
           </button>
@@ -436,7 +436,7 @@ export default function TenantHome() {
       </header>
 
       <div className="mx-auto grid max-w-7xl gap-7 px-4 py-6 sm:px-6 md:grid-cols-[220px_1fr] lg:py-8">
-        <aside className="hidden h-fit rounded-2xl border border-[#d8d8d0] bg-white p-3 shadow-[var(--rm-shadow)] md:block">
+        <aside className="hidden h-fit rounded-2xl border border-[#ccd5e4] bg-white p-3 shadow-[var(--rm-shadow)] md:block">
           <label className="block p-2 text-xs font-bold uppercase tracking-wider text-[#60708d]">Your tenancy</label>
           {items.length > 1 ? (
             <select
@@ -463,7 +463,7 @@ export default function TenantHome() {
               key={x}
               onClick={() => setTab(x)}
               className={`mb-1 w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition ${
-                tab === x ? "bg-[#173c31] text-white shadow-sm" : "text-[#33443d] hover:bg-[#edf4f1]"
+                tab === x ? "bg-[#2151c5] text-white shadow-sm" : "text-[#33415c] hover:bg-[#f0f6ff]"
               }`}
             >
               {title(x)}
@@ -472,12 +472,12 @@ export default function TenantHome() {
         </aside>
 
         <section>
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#cdd8d3] bg-[#edf4f1] px-5 py-5 sm:px-6">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#d3def1] bg-[#f0f6ff] px-5 py-5 sm:px-6">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#16745c]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#2151c5]">
                 {tab === "home" ? "Your home" : "Tenant workspace"}
               </p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-[-0.025em] text-[#17231f]">
+              <h1 className="mt-1 text-3xl font-semibold tracking-[-0.025em] text-[#182133]">
                 {tab === "home" ? `Welcome, ${d.tenantName || d.tenantEmail}` : title(tab)}
               </h1>
             </div>
@@ -569,6 +569,9 @@ export default function TenantHome() {
           {tab === "maintenance" && (
             <div className="grid gap-6 lg:grid-cols-2">
               <Card title="Report a Maintenance Issue">
+                <p className="mb-4 rounded-xl border border-[#c7d7f5] bg-[#f0f6ff] px-4 py-3 text-xs leading-5 text-[#33415c]">
+                  Requests, photos and status updates are shared with your property manager in the same maintenance record.
+                </p>
                 <form onSubmit={report} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-[#60708d]">Category</label>
@@ -835,6 +838,9 @@ export default function TenantHome() {
           {tab === "documents" && (
             <div className="grid gap-5 lg:grid-cols-2">
               <Card title="Document vault">
+                <p className="mb-4 rounded-xl border border-[#c7d7f5] bg-[#f0f6ff] px-4 py-3 text-xs leading-5 text-[#33415c]">
+                  Landlord files are read-only. Files you upload are shared only with the manager of this tenancy and can be replaced here.
+                </p>
                 {progress > 0 && (
                   <div className="mb-4">
                     <div className="mb-1 flex justify-between text-xs font-semibold text-[#182133]">
@@ -854,8 +860,10 @@ export default function TenantHome() {
                         <small className="block truncate text-xs text-[#60708d]">
                           {title(x.category)} · {x.fileName} · revision {x.revision || 1}
                         </small>
-                        <small className="block text-xs text-[#60708d]">
-                          Uploaded by {x.uploadedBy === "TENANT" ? "you" : "landlord"}
+                        <small className="mt-1 block text-xs text-[#60708d]">
+                          <span className={`mr-1.5 inline-flex rounded-full px-2 py-0.5 font-semibold ${x.uploadedBy === "TENANT" ? "bg-[#dde7ff] text-[#1a43a7]" : "bg-[#e7eef8] text-[#33415c]"}`}>
+                            {x.uploadedBy === "TENANT" ? "Uploaded by you" : "Shared by landlord"}
+                          </span>
                           {x.expiresOn ? ` · expires ${x.expiresOn}` : ""}
                         </small>
                       </button>
@@ -1095,14 +1103,14 @@ export default function TenantHome() {
 
       <nav
         aria-label="Tenant portal"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#d8d8d0] bg-white/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(23,35,31,0.10)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#ccd5e4] bg-white/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(24,33,51,0.10)] backdrop-blur-xl md:hidden"
       >
         {(["home", "bills", "maintenance", "documents", "lease"] as Tab[]).map((x) => (
           <button
             key={x}
             onClick={() => setTab(x)}
             className={`min-w-0 rounded-xl px-1 py-2 text-[10px] font-bold transition ${
-              tab === x ? "bg-[#dcece6] text-[#105c49]" : "text-[#68716c]"
+              tab === x ? "bg-[#dde7ff] text-[#1a43a7]" : "text-[#60708d]"
             }`}
           >
             {x === "maintenance" ? "Repairs" : x === "documents" ? "Vault" : title(x)}
@@ -1115,8 +1123,8 @@ export default function TenantHome() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mt-5 rounded-2xl border border-[#d8d8d0] bg-white p-5 shadow-[var(--rm-shadow)] sm:p-6">
-      <h2 className="mb-4 text-lg font-semibold tracking-tight text-[#17231f]">{title}</h2>
+    <div className="mt-5 rounded-2xl border border-[#ccd5e4] bg-white p-5 shadow-[var(--rm-shadow)] sm:p-6">
+      <h2 className="mb-4 text-lg font-semibold tracking-tight text-[#182133]">{title}</h2>
       {children}
     </div>
   )
@@ -1124,9 +1132,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-2xl border border-[#d8d8d0] bg-white p-5 shadow-[var(--rm-shadow)]">
+    <div className="rounded-2xl border border-[#ccd5e4] bg-white p-5 shadow-[var(--rm-shadow)]">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#68716c]">{label}</p>
-      <b className={`mt-1.5 block text-2xl font-semibold tracking-tight ${accent ? "text-[#16745c]" : "text-[#17231f]"}`}>{value}</b>
+      <b className={`mt-1.5 block text-2xl font-semibold tracking-tight ${accent ? "text-[#2151c5]" : "text-[#182133]"}`}>{value}</b>
     </div>
   )
 }
@@ -1135,10 +1143,10 @@ function Action({ text, go }: { text: string; go: () => void }) {
   return (
     <button
       onClick={go}
-      className="rounded-xl border border-[#d8d8d0] bg-[#fbfbf8] p-4 text-left font-semibold transition hover:border-[#9fb3aa] hover:bg-[#edf4f1]"
+      className="rounded-xl border border-[#ccd5e4] bg-[#f8faff] p-4 text-left font-semibold transition hover:border-[#b4c2d6] hover:bg-[#f0f6ff]"
     >
-      <span className="block text-sm text-[#17231f]">{text}</span>
-      <span className="mt-2 block text-xs font-bold text-[#16745c]">Open →</span>
+      <span className="block text-sm text-[#182133]">{text}</span>
+      <span className="mt-2 block text-xs font-bold text-[#2151c5]">Open →</span>
     </button>
   )
 }
