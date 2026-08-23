@@ -666,19 +666,45 @@ export default function TenantHome() {
 
                           <p className="mt-2 text-xs text-[#60708d]">{x.description}</p>
 
-                          <div className="mt-3 border-l-2 border-[#1f6ad8] pl-3 text-xs space-y-1 text-[#60708d]">
+                          <div className="mt-3 border-l-2 border-[#1f6ad8] pl-3 text-xs space-y-1.5 text-[#60708d]">
                             <p>
                               <strong className="text-[#182133]">Reported:</strong>{" "}
                               {x.createdAt ? new Date(x.createdAt).toLocaleString() : "Recently"}
                             </p>
-                            {x.ownerNote && (
-                              <p className="text-blue-900 font-medium">
-                                💬 <strong>Manager note:</strong> {x.ownerNote}
-                              </p>
+                            {x.assigneeName && (
+                              <div className="rounded-xl bg-blue-50/80 p-2 text-xs text-[#1a42a5] flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <span className="font-bold">🔧 Assigned Technician:</span> {x.assigneeName}
+                                  {x.assigneeContact ? ` · ${x.assigneeContact}` : ""}
+                                </div>
+                                {x.assigneeContact && (
+                                  <div className="flex gap-1.5">
+                                    <a
+                                      href={`https://wa.me/${x.assigneeContact.replace(/[^0-9]/g, "")}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded-lg bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700"
+                                    >
+                                      WhatsApp
+                                    </a>
+                                    <a
+                                      href={`tel:${x.assigneeContact}`}
+                                      className="rounded-lg border border-[#ccd5e4] bg-white px-2 py-0.5 text-[10px] font-bold text-[#182133] hover:bg-slate-50"
+                                    >
+                                      Call
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             {x.appointmentAt && (
                               <p className="text-indigo-900 font-medium">
                                 📅 <strong>Technician Visit:</strong> {new Date(x.appointmentAt).toLocaleString()}
+                              </p>
+                            )}
+                            {x.ownerNote && (
+                              <p className="text-blue-900 font-medium">
+                                💬 <strong>Manager note:</strong> {x.ownerNote}
                               </p>
                             )}
                             {x.resolvedAt && (
