@@ -97,7 +97,7 @@ export default function Home() {
           <Feature title="Bills & receipts" text="One clear bill per month with payment history." icon="receipt" />
           <Feature title="Maintenance" text="Report an issue with a photo and track its status." icon="wrench" />
           <Feature title="Document vault" text="Securely share PDFs and images with your manager." icon="shield" />
-          <Feature title="Tenant IDs" text="One Gmail can access multiple tenancies safely." icon="key" />
+          <Feature title="Tenant IDs" text="One email account can access multiple tenancies safely." icon="key" />
         </div>
       </section>
 

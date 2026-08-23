@@ -169,12 +169,29 @@ export default function TenantHome() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (!router.isReady || !items.length) return
+    const tenancy = typeof router.query.tenancy === "string" ? router.query.tenancy : ""
+    if (!tenancy) return
+    const match = items.findIndex((item) => item.tenantId === tenancy || item.rentId === tenancy)
+    if (match >= 0) setSelected(match)
+  }, [items, router.isReady, router.query.tenancy])
+
   const d = items[selected]
   const openBills = useMemo(
     () => d?.invoices.filter((x) => ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PENDING", "UNPAID"].includes(x.status)) || [],
     [d]
   )
   const paid = useMemo(() => d?.invoices.filter((x) => x.status === "PAID") || [], [d])
+
+  function selectTenancy(index: number) {
+    const account = items[index]
+    setSelected(index)
+    setTab("home")
+    if (account) {
+      router.replace({ pathname: "/tenant", query: { tenancy: account.tenantId || account.rentId } }, undefined, { shallow: true })
+    }
+  }
 
   async function logout() {
     await tenantAuth?.auth.signOut()
@@ -377,7 +394,7 @@ export default function TenantHome() {
     return (
       <Message
         text={
-          error || "Your Gmail is not assigned to a Tenant ID yet. Ask your property manager to add it."
+          error || "Your email address is not assigned to a Tenant ID yet. Ask your property manager to add it."
         }
       />
     )
@@ -417,8 +434,7 @@ export default function TenantHome() {
               className="mb-3 w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-2.5 text-sm font-semibold text-[#182133] outline-none focus:border-[#2151c5]"
               value={selected}
               onChange={(e) => {
-                setSelected(Number(e.target.value))
-                setTab("home")
+                selectTenancy(Number(e.target.value))
               }}
             >
               {items.map((x, i) => (
@@ -458,7 +474,7 @@ export default function TenantHome() {
             </div>
             {items.length > 1 && (
               <span className="rounded-full border border-[#dde7ff] bg-[#dde7ff] px-3.5 py-1 text-xs font-semibold text-[#1a42a5]">
-                {items.length} tenancies linked to this Gmail
+                {items.length} tenancies linked to this email account
               </span>
             )}
           </div>
@@ -470,8 +486,7 @@ export default function TenantHome() {
                 className="w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-3 font-semibold text-[#182133]"
                 value={selected}
                 onChange={(e) => {
-                  setSelected(Number(e.target.value))
-                  setTab("home")
+                  selectTenancy(Number(e.target.value))
                 }}
               >
                 {items.map((x, i) => (
