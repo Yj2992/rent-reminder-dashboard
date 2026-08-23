@@ -8,6 +8,7 @@ export const tenantRoutes = {
   maintenance: "/tenant/maintenance",
   maintenanceAttachments: (id: string) => `/tenant/maintenance/${segment(id)}/attachments`,
   maintenanceReopen: (id: string) => `/tenant/maintenance/${segment(id)}/reopen`,
+  maintenanceCancel: (id: string) => `/tenant/maintenance/${segment(id)}/cancel`,
   documents: "/tenant/documents",
   document: (id: string) => `/tenant/documents/${segment(id)}`,
   documentReplace: (id: string) => `/tenant/documents/${segment(id)}/replace`,

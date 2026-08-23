@@ -87,6 +87,7 @@ const maintenanceStatusLabel = (status: string) => ({
   INSPECTION_PENDING: "Awaiting inspection",
   RESOLVED: "Resolved",
   CLOSED: "Closed",
+  CANCELLED: "Cancelled",
   REOPENED: "Reopened",
 } as Record<string, string>)[status] || title(status)
 
@@ -370,6 +371,14 @@ export default function TenantHome() {
     await load()
   }
 
+  async function cancelMaintenance(id: string) {
+    if (!confirm("Cancel this maintenance request? It will remain in your history.")) return
+    const access = await token()
+    await axios.post(`${api}${tenantRoutes.maintenanceCancel(id)}`, {}, { headers: { Authorization: `Bearer ${access}` } })
+    setMessage("Maintenance request cancelled.")
+    await load()
+  }
+
   async function acknowledgeLease(id: string) {
     const note = prompt("Optional acknowledgement note") || undefined
     const access = await token()
@@ -405,29 +414,29 @@ export default function TenantHome() {
     d.depositEntries.filter((x) => ["DEDUCTION", "REFUND", "ADJUSTMENT_DEBIT"].includes(x.entryType)).reduce((s, x) => s + x.amountPaise, 0)
 
   return (
-    <main className="min-h-screen bg-[#f4f7fb] pb-20 text-[#182133] md:pb-0">
-      <header className="sticky top-0 z-30 border-b border-[#ccd5e4] bg-white/95 backdrop-blur">
+    <main className="min-h-screen bg-[var(--rm-bg)] pb-24 text-[var(--rm-text)] md:pb-0">
+      <header className="sticky top-0 z-30 border-b border-[#d8d8d0] bg-[#f6f5f1]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#2151c5] font-bold text-white shadow-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#173c31] font-bold text-white shadow-sm">
               R
             </span>
             <div>
-              <b className="text-xl font-bold tracking-tight text-[#182133]">Rentomatic</b>
-              <p className="text-xs text-[#60708d]">Tenant portal · {d.tenantId || "Tenant"}</p>
+              <b className="text-lg font-semibold tracking-tight text-[#17231f]">Rentomatic</b>
+              <p className="text-xs text-[#68716c]">Tenant ID · {d.tenantId || "Pending"}</p>
             </div>
           </div>
           <button
             onClick={() => setTab("profile")}
-            className="rounded-[14px] border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb] hover:border-[#b4c2d6]"
+            className="rounded-xl border border-[#d8d8d0] bg-white px-4 py-2 text-sm font-semibold text-[#173c31] shadow-sm transition hover:border-[#9fb3aa] hover:bg-[#edf4f1]"
           >
             Account
           </button>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 md:grid-cols-[240px_1fr]">
-        <aside className="hidden h-fit rounded-[20px] border border-[#ccd5e4] bg-white p-3.5 shadow-sm md:block">
+      <div className="mx-auto grid max-w-7xl gap-7 px-4 py-6 sm:px-6 md:grid-cols-[220px_1fr] lg:py-8">
+        <aside className="hidden h-fit rounded-2xl border border-[#d8d8d0] bg-white p-3 shadow-[var(--rm-shadow)] md:block">
           <label className="block p-2 text-xs font-bold uppercase tracking-wider text-[#60708d]">Your tenancy</label>
           {items.length > 1 ? (
             <select
@@ -453,8 +462,8 @@ export default function TenantHome() {
             <button
               key={x}
               onClick={() => setTab(x)}
-              className={`mb-1 w-full rounded-[12px] px-3.5 py-2.5 text-left text-sm font-semibold transition ${
-                tab === x ? "bg-[#2151c5] text-white shadow-sm" : "text-[#182133] hover:bg-[#f4f7fb]"
+              className={`mb-1 w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition ${
+                tab === x ? "bg-[#173c31] text-white shadow-sm" : "text-[#33443d] hover:bg-[#edf4f1]"
               }`}
             >
               {title(x)}
@@ -463,13 +472,13 @@ export default function TenantHome() {
         </aside>
 
         <section>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#cdd8d3] bg-[#edf4f1] px-5 py-5 sm:px-6">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#60708d]">
-                Tenant ID <b className="text-[#2151c5]">{d.tenantId || "Being assigned"}</b>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#16745c]">
+                {tab === "home" ? "Your home" : "Tenant workspace"}
               </p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-[#182133]">
-                {tab === "home" ? `Hello, ${d.tenantName || d.tenantEmail}` : title(tab)}
+              <h1 className="mt-1 text-3xl font-semibold tracking-[-0.025em] text-[#17231f]">
+                {tab === "home" ? `Welcome, ${d.tenantName || d.tenantEmail}` : title(tab)}
               </h1>
             </div>
             {items.length > 1 && (
@@ -514,7 +523,7 @@ export default function TenantHome() {
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Stat label="Amount due" value={money(openBills.reduce((sum, invoice) => sum + outstanding(invoice), 0))} accent />
-                <Stat label="Open requests" value={String(d.maintenance.filter((x) => !["RESOLVED", "CLOSED"].includes(x.status)).length)} />
+                <Stat label="Open requests" value={String(d.maintenance.filter((x) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(x.status)).length)} />
                 <Stat label="Deposit balance" value={d.deposit ? money(balance) : "Not recorded"} />
               </div>
               {d.notifications?.length > 0 && (
@@ -667,6 +676,8 @@ export default function TenantHome() {
                   <div className="space-y-4">
                     {d.maintenance.map((x) => {
                       const isClosed = ["RESOLVED", "CLOSED"].includes(x.status)
+                      const isCancelled = x.status === "CANCELLED"
+                      const canCancel = ["ISSUE_REPORTED", "OPEN", "TRIAGED", "REOPENED"].includes(x.status)
                       const isProgress = ["TRIAGED", "ACKNOWLEDGED", "WORK_ORDER_CREATED", "VENDOR_ASSIGNED", "IN_PROGRESS", "INSPECTION_PENDING", "SCHEDULED", "ASSIGNED", "REOPENED"].includes(x.status)
                       const stage = maintenanceStage(x.status)
 
@@ -695,6 +706,8 @@ export default function TenantHome() {
                               className={`rounded-full px-3 py-0.5 text-xs font-bold ${
                                 isClosed
                                   ? "bg-emerald-100 text-emerald-800"
+                                  : isCancelled
+                                  ? "bg-slate-100 text-slate-700"
                                   : isProgress
                                   ? "bg-amber-100 text-amber-800"
                                   : "bg-blue-100 text-blue-800"
@@ -777,6 +790,14 @@ export default function TenantHome() {
                                 className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"
                               >
                                 Reopen Request
+                              </button>
+                            )}
+                            {canCancel && (
+                              <button
+                                onClick={() => cancelMaintenance(x.id)}
+                                className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                              >
+                                Cancel request
                               </button>
                             )}
                           </div>
@@ -1074,14 +1095,14 @@ export default function TenantHome() {
 
       <nav
         aria-label="Tenant portal"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-[#ccd5e4] bg-white px-1 py-2 shadow-[0_-8px_30px_rgba(24,33,51,0.06)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#d8d8d0] bg-white/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(23,35,31,0.10)] backdrop-blur-xl md:hidden"
       >
-        {(["home", "bills", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
+        {(["home", "bills", "maintenance", "documents", "lease"] as Tab[]).map((x) => (
           <button
             key={x}
             onClick={() => setTab(x)}
-            className={`min-w-0 rounded-[10px] px-0.5 py-1.5 text-[10px] font-bold transition ${
-              tab === x ? "bg-[#dde7ff] text-[#1a42a5]" : "text-[#60708d]"
+            className={`min-w-0 rounded-xl px-1 py-2 text-[10px] font-bold transition ${
+              tab === x ? "bg-[#dcece6] text-[#105c49]" : "text-[#68716c]"
             }`}
           >
             {x === "maintenance" ? "Repairs" : x === "documents" ? "Vault" : title(x)}
@@ -1094,8 +1115,8 @@ export default function TenantHome() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mt-5 rounded-[20px] border border-[#ccd5e4] bg-white p-5 shadow-sm sm:p-6">
-      <h2 className="mb-4 text-lg font-bold tracking-tight text-[#182133]">{title}</h2>
+    <div className="mt-5 rounded-2xl border border-[#d8d8d0] bg-white p-5 shadow-[var(--rm-shadow)] sm:p-6">
+      <h2 className="mb-4 text-lg font-semibold tracking-tight text-[#17231f]">{title}</h2>
       {children}
     </div>
   )
@@ -1103,9 +1124,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-[18px] border border-[#ccd5e4] bg-white p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wider text-[#60708d]">{label}</p>
-      <b className={`mt-1.5 block text-2xl font-bold tracking-tight ${accent ? "text-[#2151c5]" : "text-[#182133]"}`}>{value}</b>
+    <div className="rounded-2xl border border-[#d8d8d0] bg-white p-5 shadow-[var(--rm-shadow)]">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#68716c]">{label}</p>
+      <b className={`mt-1.5 block text-2xl font-semibold tracking-tight ${accent ? "text-[#16745c]" : "text-[#17231f]"}`}>{value}</b>
     </div>
   )
 }
@@ -1114,10 +1135,10 @@ function Action({ text, go }: { text: string; go: () => void }) {
   return (
     <button
       onClick={go}
-      className="rounded-[16px] border border-[#ccd5e4] bg-[#fcfdff] p-4 text-left font-semibold shadow-sm transition hover:border-[#2151c5] hover:bg-[#f4f8ff]"
+      className="rounded-xl border border-[#d8d8d0] bg-[#fbfbf8] p-4 text-left font-semibold transition hover:border-[#9fb3aa] hover:bg-[#edf4f1]"
     >
-      <span className="block text-sm text-[#182133]">{text}</span>
-      <span className="mt-2 block text-xs font-bold text-[#2151c5]">View →</span>
+      <span className="block text-sm text-[#17231f]">{text}</span>
+      <span className="mt-2 block text-xs font-bold text-[#16745c]">Open →</span>
     </button>
   )
 }
