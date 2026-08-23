@@ -98,7 +98,7 @@ export default function TenantHome() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
-  const [issue, setIssue] = useState({ title: "", description: "", priority: "MEDIUM" })
+  const [issue, setIssue] = useState({ title: "", description: "", category: "PLUMBING", priority: "MEDIUM" })
   const [photo, setPhoto] = useState<File | null>(null)
   const [vault, setVault] = useState({ title: "", category: "OTHER" })
   const [vaultFile, setVaultFile] = useState<File | null>(null)
@@ -178,7 +178,7 @@ export default function TenantHome() {
         { rentId: d.rentId, ...issue, photoBase64, photoFileName: photo?.name, photoMimeType: photo?.type },
         { headers: { Authorization: `Bearer ${access}` } }
       )
-      setIssue({ title: "", description: "", priority: "MEDIUM" })
+      setIssue({ title: "", description: "", category: "PLUMBING", priority: "MEDIUM" })
       setPhoto(null)
       setMessage("Maintenance request submitted. Your property manager can now review it.")
       await load()
@@ -519,110 +519,218 @@ export default function TenantHome() {
           )}
 
           {tab === "maintenance" && (
-            <div className="grid gap-5 lg:grid-cols-2">
-              <Card title="Report an issue">
-                <form onSubmit={report} className="space-y-3.5">
-                  <input
-                    required
-                    className="input"
-                    placeholder="What needs attention?"
-                    value={issue.title}
-                    onChange={(e) => setIssue({ ...issue, title: e.target.value })}
-                  />
-                  <textarea
-                    required
-                    rows={4}
-                    className="input"
-                    placeholder="Describe the issue and location"
-                    value={issue.description}
-                    onChange={(e) => setIssue({ ...issue, description: e.target.value })}
-                  />
-                  <select className="input" value={issue.priority} onChange={(e) => setIssue({ ...issue, priority: e.target.value })}>
-                    <option value="LOW">Low priority</option>
-                    <option value="MEDIUM">Medium priority</option>
-                    <option value="HIGH">High priority</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="input file:mr-3 file:rounded-lg file:border-0 file:bg-[#dde7ff] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#1a42a5]"
-                    onChange={(e) => setPhoto(e.target.files?.[0] || null)}
-                  />
-                  <button disabled={busy} className="btn-primary w-full">
-                    {busy ? "Submitting…" : "Submit request"}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card title="Report a Maintenance Issue">
+                <form onSubmit={report} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#60708d]">Category</label>
+                    <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                      {[
+                        { id: "PLUMBING", label: "🚰 Plumbing" },
+                        { id: "ELECTRICAL", label: "⚡ Electrical" },
+                        { id: "HVAC", label: "❄️ AC / HVAC" },
+                        { id: "APPLIANCE", label: "📺 Appliance" },
+                        { id: "CARPENTRY", label: "🚪 Carpentry" },
+                        { id: "PAINTING", label: "🎨 Painting" },
+                        { id: "CLEANING", label: "🧹 Cleaning" },
+                        { id: "OTHER", label: "🛠️ Other" },
+                      ].map((cat) => (
+                        <button
+                          type="button"
+                          key={cat.id}
+                          onClick={() => setIssue({ ...issue, category: cat.id })}
+                          className={`rounded-xl py-2 px-1 text-center text-xs font-bold transition ${
+                            issue.category === cat.id
+                              ? "bg-[#1f6ad8] text-white shadow-sm"
+                              : "bg-[#f1f5fa] text-[#182133] hover:bg-[#e2eaf5]"
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#60708d]">What needs attention?</label>
+                    <input
+                      required
+                      className="input mt-1"
+                      placeholder="e.g. Tap leaking in master bathroom"
+                      value={issue.title}
+                      onChange={(e) => setIssue({ ...issue, title: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#60708d]">Detailed Description</label>
+                    <textarea
+                      required
+                      rows={3}
+                      className="input mt-1"
+                      placeholder="Describe the issue, exact location, or preferred technician visit timing..."
+                      value={issue.description}
+                      onChange={(e) => setIssue({ ...issue, description: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#60708d]">Urgency / Priority</label>
+                    <div className="mt-1.5 grid grid-cols-4 gap-2">
+                      {[
+                        { id: "LOW", label: "Low", color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+                        { id: "MEDIUM", label: "Medium", color: "bg-blue-50 text-blue-800 border-blue-200" },
+                        { id: "HIGH", label: "High", color: "bg-amber-50 text-amber-800 border-amber-200" },
+                        { id: "URGENT", label: "Urgent", color: "bg-red-50 text-red-800 border-red-200" },
+                      ].map((pri) => (
+                        <button
+                          type="button"
+                          key={pri.id}
+                          onClick={() => setIssue({ ...issue, priority: pri.id })}
+                          className={`rounded-xl border py-2 text-center text-xs font-bold transition ${
+                            issue.priority === pri.id
+                              ? `${pri.color} ring-2 ring-[#1f6ad8]`
+                              : "border-[#dbe4f0] bg-white text-[#60708d] hover:bg-slate-50"
+                          }`}
+                        >
+                          {pri.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#60708d]">Photo Attachment (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="input mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-[#dde7ff] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#1a42a5]"
+                      onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+                    />
+                    {photo && (
+                      <div className="mt-2 flex items-center justify-between rounded-xl bg-blue-50/60 p-2 text-xs font-semibold text-[#1a42a5]">
+                        <span>📷 {photo.name}</span>
+                        <button type="button" onClick={() => setPhoto(null)} className="text-red-600 hover:text-red-800">
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button disabled={busy} className="btn-primary w-full py-3 text-sm font-bold shadow-md">
+                    {busy ? "Submitting Request…" : "Submit Maintenance Request"}
                   </button>
                 </form>
               </Card>
-              <Card title="Request timeline">
+
+              <Card title="Your Maintenance Requests">
                 {d.maintenance.length ? (
-                  d.maintenance.map((x) => (
-                    <div key={x.id} className="border-b border-[#ccd5e4] py-5 last:border-b-0">
-                      <div className="flex justify-between gap-3">
-                        <b className="font-bold text-[#182133]">{x.title}</b>
-                        <span className="h-fit rounded-full border border-[#b0e5d8] bg-[#d7f4ec] px-3 py-0.5 text-xs font-semibold text-[#096352]">
-                          {title(x.status)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-[#60708d]">{x.description}</p>
-                      <div className="mt-3 border-l-2 border-[#2151c5] pl-4 text-xs">
-                        <p>
-                          <b>Reported</b>
-                          {x.createdAt ? ` · ${new Date(x.createdAt).toLocaleString()}` : ""}
-                        </p>
-                        {x.ownerNote && (
-                          <p className="mt-2">
-                            <b>Manager update:</b> <span className="text-[#60708d]">{x.ownerNote}</span>
-                          </p>
-                        )}
-                        {x.appointmentAt && (
-                          <p className="mt-2">
-                            <b>Appointment:</b> {new Date(x.appointmentAt).toLocaleString()}
-                          </p>
-                        )}
-                        {x.resolvedAt && (
-                          <p className="mt-2 text-[#096352]">
-                            <b>Resolved:</b> {new Date(x.resolvedAt).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => loadAttachments(x.id)}
-                        className="mt-3 rounded-[12px] border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133] transition hover:bg-[#f4f7fb]"
-                      >
-                        Show before/after photos
-                      </button>
-                      {attachments[x.id] && (
-                        <div className="mt-3 grid grid-cols-2 gap-3">
-                          {attachments[x.id].map((p) => (
-                            <a
-                              key={p.id}
-                              href={p.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="overflow-hidden rounded-[14px] border border-[#ccd5e4] bg-white shadow-sm"
+                  <div className="space-y-4">
+                    {d.maintenance.map((x) => {
+                      const isClosed = ["RESOLVED", "CLOSED"].includes(x.status)
+                      const isProgress = ["IN_PROGRESS", "SCHEDULED", "ASSIGNED"].includes(x.status)
+
+                      return (
+                        <div key={x.id} className="rounded-2xl border border-[#dbe4f0] bg-white p-4 shadow-sm transition hover:border-[#b4cbef]">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                                  {x.category ? `${x.category}` : "REPAIR"}
+                                </span>
+                                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                  x.priority === "URGENT"
+                                    ? "bg-red-100 text-red-800"
+                                    : x.priority === "HIGH"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}>
+                                  {x.priority || "MEDIUM"}
+                                </span>
+                              </div>
+                              <h4 className="mt-1.5 text-sm font-bold text-[#182133]">{x.title}</h4>
+                            </div>
+
+                            <span
+                              className={`rounded-full px-3 py-0.5 text-xs font-bold ${
+                                isClosed
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : isProgress
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
                             >
-                              <img src={p.url} alt={`${p.stage} maintenance`} className="h-32 w-full object-cover" />
-                              <span className="block p-2 text-xs font-bold text-[#182133]">
-                                {title(p.stage)} · {p.uploadedBy.toLowerCase()}
-                              </span>
-                            </a>
-                          ))}
-                          {!attachments[x.id].length && <p className="col-span-2 text-xs text-[#60708d]">No photos added yet.</p>}
+                              {title(x.status || "REPORTED")}
+                            </span>
+                          </div>
+
+                          <p className="mt-2 text-xs text-[#60708d]">{x.description}</p>
+
+                          <div className="mt-3 border-l-2 border-[#1f6ad8] pl-3 text-xs space-y-1 text-[#60708d]">
+                            <p>
+                              <strong className="text-[#182133]">Reported:</strong>{" "}
+                              {x.createdAt ? new Date(x.createdAt).toLocaleString() : "Recently"}
+                            </p>
+                            {x.ownerNote && (
+                              <p className="text-blue-900 font-medium">
+                                💬 <strong>Manager note:</strong> {x.ownerNote}
+                              </p>
+                            )}
+                            {x.appointmentAt && (
+                              <p className="text-indigo-900 font-medium">
+                                📅 <strong>Technician Visit:</strong> {new Date(x.appointmentAt).toLocaleString()}
+                              </p>
+                            )}
+                            {x.resolvedAt && (
+                              <p className="text-emerald-700 font-bold">
+                                ✓ <strong>Resolved:</strong> {new Date(x.resolvedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#f0f4f9] pt-3">
+                            <button
+                              onClick={() => loadAttachments(x.id)}
+                              className="rounded-xl border border-[#dbe4f0] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133] hover:bg-[#f4f7fb]"
+                            >
+                              📷 {attachments[x.id] ? "Hide Photos" : "Show Photos"}
+                            </button>
+
+                            {isClosed && (
+                              <button
+                                onClick={() => reopen(x.id)}
+                                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"
+                              >
+                                Reopen Request
+                              </button>
+                            )}
+                          </div>
+
+                          {attachments[x.id] && (
+                            <div className="mt-3 grid grid-cols-2 gap-3">
+                              {attachments[x.id].map((p) => (
+                                <a
+                                  key={p.id}
+                                  href={p.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="overflow-hidden rounded-xl border border-[#dbe4f0] bg-white shadow-sm"
+                                >
+                                  <img src={p.url} alt={`${p.stage} maintenance`} className="h-28 w-full object-cover" />
+                                  <span className="block p-1.5 text-[11px] font-bold text-[#182133]">
+                                    {title(p.stage)} photo
+                                  </span>
+                                </a>
+                              ))}
+                              {!attachments[x.id].length && <p className="col-span-2 text-xs text-[#60708d]">No photos added yet.</p>}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {["RESOLVED", "CLOSED"].includes(x.status) && (
-                        <button
-                          onClick={() => reopen(x.id)}
-                          className="mt-3 rounded-[12px] border border-[#f5d9aa] bg-[#ffe6bf] px-3 py-1.5 text-xs font-semibold text-[#82530c]"
-                        >
-                          Still not fixed? Reopen
-                        </button>
-                      )}
-                    </div>
-                  ))
+                      )
+                    })}
+                  </div>
                 ) : (
-                  <Empty text="No requests yet." />
+                  <Empty text="No maintenance requests yet. Report an issue anytime." />
                 )}
               </Card>
             </div>
