@@ -35,13 +35,18 @@ export type TenantPortalInvoice = {
 }
 
 export type TenantPortalPaymentOrder = {
-  keyId: string
+  gateway?: "CASHFREE" | "RAZORPAY" | string
+  keyId?: string
   orderId: string
+  paymentSessionId?: string | null
   amount: number
   currency: string
   invoiceId: string
   tenantName: string
   description: string
+  customerPhone?: string | null
+  customerEmail?: string | null
+  environment?: "PRODUCTION" | "SANDBOX" | string
 }
 
 export type TenantPortalManualProofResult = {

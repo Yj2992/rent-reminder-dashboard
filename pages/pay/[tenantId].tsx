@@ -32,6 +32,19 @@ function loadRazorpayScript(): Promise<void> {
   })
 }
 
+function loadCashfreeScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("Not in browser"))
+    if ((window as any).loadCashfree || (window as any).Cashfree) return resolve()
+    const script = document.createElement("script")
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js"
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error("Failed to load Cashfree checkout SDK"))
+    document.body.appendChild(script)
+  })
+}
+
 function formatAmount(amountPaise: number, currency: string) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -75,7 +88,7 @@ function paymentErrorMessage(error: unknown) {
 
 export default function PayPage() {
   const router = useRouter()
-  const { tenantId } = router.query
+  const { tenantId, order_id } = router.query
   const rawToken = Array.isArray(tenantId) ? tenantId[0] : tenantId
   const token = useMemo(() => {
     if (!rawToken) return ""
@@ -120,10 +133,29 @@ export default function PayPage() {
     setError("")
     axios
       .get(`${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`)
-      .then((response) => setInvoice(response.data))
+      .then((response) => {
+        setInvoice(response.data)
+
+        // Handle Cashfree return URL query param
+        if (order_id && typeof order_id === "string") {
+          axios
+            .post(`${backendBaseUrl}/payments/verify-cashfree`, {
+              token,
+              order_id,
+            })
+            .then((res) => {
+              if (res.data?.ok) {
+                router.push(`/success?invoice=${encodeURIComponent(response.data.invoiceId)}&token=${encodeURIComponent(token)}`)
+              }
+            })
+            .catch(() => {
+              /* Handled */
+            })
+        }
+      })
       .catch(() => setError("This payment link is invalid or no longer available."))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, order_id])
 
   async function refreshInvoice() {
     if (!token) return
@@ -146,55 +178,92 @@ export default function PayPage() {
     setError("")
 
     try {
-      const requestedAmount=partialRupees?Math.round(Number(partialRupees)*100):undefined
-      if(requestedAmount!=null&&(!Number.isFinite(requestedAmount)||requestedAmount<=0||requestedAmount>invoice.amount))throw new Error("Enter a partial amount up to the outstanding balance.")
-      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token,amount:requestedAmount })
+      const requestedAmount = partialRupees ? Math.round(Number(partialRupees) * 100) : undefined
+      if (requestedAmount != null && (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount > invoice.amount)) {
+        throw new Error("Enter a partial amount up to the outstanding balance.")
+      }
+      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token, amount: requestedAmount })
       const order = createRes.data
 
-      await loadRazorpayScript()
+      if (order.gateway === "CASHFREE" && order.paymentSessionId) {
+        // --- 1. CASHFREE PRIMARY CHECKOUT ---
+        await loadCashfreeScript()
+        const isSandbox = order.environment?.toUpperCase() === "SANDBOX"
+        const cashfree = (window as any).Cashfree({ mode: isSandbox ? "sandbox" : "production" })
 
-      const options: any = {
-        key: order.keyId,
-        amount: order.amount,
-        currency: order.currency,
-        name: invoice.companyName || "Rentomatic",
-        description: order.description,
-        order_id: order.orderId,
-        handler: async function (response: any) {
-          try {
-            await axios.post(`${backendBaseUrl}${PAYMENTS_VERIFY_PATH}`, {
-              token,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
-            })
-            router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-          } catch {
-            router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+        cashfree.checkout({
+          paymentSessionId: order.paymentSessionId,
+          redirectTarget: "_modal",
+        }).then((result: any) => {
+          if (result.error) {
+            setPaying(false)
+            setError(result.error.message || "Cashfree payment was cancelled or failed.")
           }
-        },
-        prefill: {
-          name: invoice.tenantName || "",
-          email: invoice.tenantEmail || "",
-        },
-        notes: {
-          invoice_id: invoice.invoiceId,
-          invoice_number: invoice.invoiceNumber || "",
-        },
-        theme: { color: "#1f6f5b" },
-        method: { upi: true, card: true, wallet: true, netbanking: true },
-        retry: { enabled: true, max_count: 2 },
-        modal: {
-          ondismiss: () => setPaying(false),
-        },
-      }
+          if (result.paymentDetails) {
+            axios
+              .post(`${backendBaseUrl}/payments/verify-cashfree`, {
+                token,
+                order_id: order.orderId,
+              })
+              .then((res) => {
+                if (res.data?.ok) {
+                  router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+                } else {
+                  router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+                }
+              })
+              .catch(() => {
+                router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+              })
+          }
+        })
+      } else {
+        // --- 2. RAZORPAY FALLBACK CHECKOUT ---
+        await loadRazorpayScript()
 
-      const checkout = new (window as any).Razorpay(options)
-      checkout.on("payment.failed", () => {
-        setPaying(false)
-        setError("Payment was not completed. Please retry or use another payment method.")
-      })
-      checkout.open()
+        const options: any = {
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: invoice.companyName || "Rentomatic",
+          description: order.description,
+          order_id: order.orderId,
+          handler: async function (response: any) {
+            try {
+              await axios.post(`${backendBaseUrl}${PAYMENTS_VERIFY_PATH}`, {
+                token,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+              })
+              router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+            } catch {
+              router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
+            }
+          },
+          prefill: {
+            name: invoice.tenantName || "",
+            email: invoice.tenantEmail || "",
+          },
+          notes: {
+            invoice_id: invoice.invoiceId,
+            invoice_number: invoice.invoiceNumber || "",
+          },
+          theme: { color: "#1f6f5b" },
+          method: { upi: true, card: true, wallet: true, netbanking: true },
+          retry: { enabled: true, max_count: 2 },
+          modal: {
+            ondismiss: () => setPaying(false),
+          },
+        }
+
+        const checkout = new (window as any).Razorpay(options)
+        checkout.on("payment.failed", () => {
+          setPaying(false)
+          setError("Payment was not completed. Please retry or use another payment method.")
+        })
+        checkout.open()
+      }
     } catch (error) {
       setError(paymentErrorMessage(error))
       setPaying(false)
