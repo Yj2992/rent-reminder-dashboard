@@ -104,30 +104,60 @@ export default function Home() {
       <section id="invoice" className="border-y border-[#ccd5e4] bg-white">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#2151c5]">Have an invoice link?</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-[#182133] sm:text-3xl">Open it without signing in</h2>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#2151c5]">Instant 1-Click Payments</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-[#182133] sm:text-3xl">Pay Rent or Electricity Bill</h2>
             <p className="mt-3 text-sm leading-6 text-[#60708d]">
-              Paste the secure payment link from your invoice email. Existing payment links continue to work exactly as before.
+              Open your invoice directly, or enter your Electricity Consumer Number to fetch and settle your DISCOM bill via Bharat Connect (BBPS).
             </p>
           </div>
-          <form onSubmit={openInvoice} className="rounded-[20px] border border-[#ccd5e4] bg-[#fcfdff] p-5 shadow-sm">
-            <label className="block text-sm font-semibold text-[#182133]">
-              Payment link or token
-              <textarea
-                value={invoice}
-                onChange={(e) => setInvoice(e.target.value)}
-                rows={3}
-                placeholder="https://rentomatic.in/pay/your-token"
-                className="mt-2 w-full resize-none rounded-[14px] border border-[#ccd5e4] bg-white p-3 text-sm text-[#182133] outline-none transition focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff]"
-              />
-            </label>
-            <button
-              disabled={!token}
-              className="mt-3 w-full rounded-[14px] bg-[#2151c5] p-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a43a7] disabled:opacity-40"
+
+          <div className="space-y-4">
+            <form onSubmit={openInvoice} className="rounded-[20px] border border-[#ccd5e4] bg-[#fcfdff] p-5 shadow-sm">
+              <label className="block text-sm font-semibold text-[#182133]">
+                Rent Payment Link or Token
+                <input
+                  value={invoice}
+                  onChange={(e) => setInvoice(e.target.value)}
+                  placeholder="Paste payment token or link (e.g. rent_...)"
+                  className="mt-2 w-full rounded-[14px] border border-[#ccd5e4] bg-white p-3 text-sm text-[#182133] outline-none transition focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff]"
+                />
+              </label>
+              <button
+                disabled={!token}
+                className="mt-3 w-full rounded-[14px] bg-[#2151c5] p-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a43a7] disabled:opacity-40"
+              >
+                Open Rent Invoice
+              </button>
+            </form>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const form = e.currentTarget
+                const consumer = (form.elements.namedItem("consumerNumber") as HTMLInputElement)?.value?.trim()
+                if (consumer) {
+                  router.push(`/pay/util_${encodeURIComponent(consumer)}`)
+                }
+              }}
+              className="rounded-[20px] border border-[#c6d7f8] bg-[#f4f8ff] p-5 shadow-sm"
             >
-              Open invoice
-            </button>
-          </form>
+              <label className="block text-sm font-semibold text-[#182133]">
+                ⚡ Electricity Bill (Consumer Number)
+                <input
+                  name="consumerNumber"
+                  required
+                  placeholder="e.g. 000091278839 (MSEDCL / BESCOM)"
+                  className="mt-2 w-full rounded-[14px] border border-[#c6d7f8] bg-white p-3 text-sm text-[#182133] outline-none transition focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
+                />
+              </label>
+              <button
+                type="submit"
+                className="mt-3 w-full rounded-[14px] bg-[#1f6ad8] p-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#144eb0]"
+              >
+                ⚡ Fetch & Pay Electricity Bill
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 

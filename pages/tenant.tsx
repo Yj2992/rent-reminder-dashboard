@@ -60,7 +60,7 @@ type ProfilePayload = {
   household: Household[]
 }
 
-type Tab = "home" | "bills" | "maintenance" | "documents" | "lease" | "profile"
+type Tab = "home" | "bills" | "utilities" | "maintenance" | "documents" | "lease" | "profile"
 
 const api = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || OWNER_BACKEND_BASE_URL
 axios.defaults.timeout = 90_000
@@ -458,7 +458,7 @@ export default function TenantHome() {
               <p className="text-xs text-[#60708d]">{d.tenantName}</p>
             </div>
           )}
-          {(["home", "bills", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
+          {(["home", "bills", "utilities", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
             <button
               key={x}
               onClick={() => setTab(x)}
@@ -466,7 +466,7 @@ export default function TenantHome() {
                 tab === x ? "bg-[#2151c5] text-white shadow-sm" : "text-[#33415c] hover:bg-[#f0f6ff]"
               }`}
             >
-              {title(x)}
+              {x === "utilities" ? "⚡ Electricity Bills" : x === "bills" ? "Rent Invoices" : title(x)}
             </button>
           ))}
         </aside>
@@ -550,19 +550,71 @@ export default function TenantHome() {
           )}
 
           {tab === "bills" && (
-            <Card title="Bills & receipts">
+            <Card title="Rent Invoices & Receipts">
               <h3 className="text-base font-bold text-[#182133]">To pay</h3>
               {openBills.length ? (
                 openBills.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
               ) : (
-                <Empty text="Nothing is due." />
+                <Empty text="No rent is currently due." />
               )}
-              <h3 className="mt-8 text-base font-bold text-[#182133]">Payment history</h3>
+              <h3 className="mt-8 text-base font-bold text-[#182133]">Rent Payment history</h3>
               {paid.length ? (
                 paid.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
               ) : (
-                <Empty text="No receipts yet." />
+                <Empty text="No rent receipts yet." />
               )}
+            </Card>
+          )}
+
+          {tab === "utilities" && (
+            <Card title="⚡ Bharat Connect (BBPS) Electricity Desk">
+              <div className="rounded-[18px] border border-[#c6d7f8] bg-[#f4f8ff] p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1f6ad8] text-white font-bold text-lg shadow-sm">⚡</span>
+                  <div>
+                    <h3 className="font-bold text-[#182133] text-base">Direct DISCOM Utility Payments</h3>
+                    <p className="text-xs text-[#60708d]">Pay electricity bills live via official Bharat Connect (BBPS) with instant clearing</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[20px] border border-[#dbe4f0] bg-white p-6 shadow-xs">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-[#182133]">Fetch & Pay Live Electricity Bill</h4>
+                <p className="text-xs text-[#60708d] mt-1">Enter your electricity consumer number to fetch your latest bill from your state board.</p>
+                
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const form = e.currentTarget
+                    const consumer = (form.elements.namedItem("consumer") as HTMLInputElement)?.value?.trim()
+                    if (consumer) {
+                      router.push(`/pay/util_${encodeURIComponent(consumer)}`)
+                    }
+                  }}
+                  className="mt-4 flex flex-col sm:flex-row gap-3"
+                >
+                  <input
+                    name="consumer"
+                    type="text"
+                    required
+                    placeholder="Enter Consumer Number (e.g. 000091278839)"
+                    className="flex-1 rounded-[14px] border border-[#d7e1ef] bg-[#fcfdff] px-4 py-3 text-sm font-medium text-[#182133] outline-none focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-[14px] bg-[#1f6ad8] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#144eb0] active:scale-[0.99]"
+                  >
+                    ⚡ Fetch & Pay Bill
+                  </button>
+                </form>
+
+                <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-[#edf2f8] text-center text-xs font-semibold text-[#60708d]">
+                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">MSEDCL (Maharashtra)</div>
+                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">BESCOM (Bangalore)</div>
+                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">BSES (Delhi)</div>
+                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">All 50+ DISCOMs</div>
+                </div>
+              </div>
             </Card>
           )}
 
