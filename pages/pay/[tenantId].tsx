@@ -341,69 +341,104 @@ export default function PayPage() {
 
   if (!invoice) return null
 
+  const isUtilityBill = Boolean(
+    invoice?.invoiceNumber?.startsWith("EBILL-") ||
+    invoice?.companyName?.toLowerCase().includes("electricity") ||
+    token.startsWith("util_")
+  )
+
   return (
-    <main className="min-h-screen bg-[#f5f7f8] text-[#17211f]">
-      <header className="border-b border-[#dce5e2] bg-white">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4">
-          <div>
-            <p className="text-lg font-bold">{invoice.companyName || "Rentomatic"}</p>
-            <p className="text-xs text-[#6f7e79]">Secure rent payment</p>
+    <main className="min-h-screen bg-[#f4f7fb] text-[#182133]">
+      <header className="border-b border-[#ccd5e4] bg-white sticky top-0 z-30 shadow-xs">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#1f6ad8] font-bold text-white shadow-sm">
+              {isUtilityBill ? "⚡" : "R"}
+            </span>
+            <div>
+              <p className="text-base font-bold text-[#182133] leading-tight">
+                {isUtilityBill ? (invoice.companyName || "Electricity Board") : (invoice.companyName || "Rentomatic")}
+              </p>
+              <p className="text-xs text-[#60708d]">
+                {isUtilityBill ? "Bharat Connect • BBPS Verified Utility Desk" : "Secure Rent & Property Desk"}
+              </p>
+            </div>
           </div>
-          <span className="rounded-full border border-[#cfe0da] bg-[#eef7f3] px-3 py-1 text-xs font-semibold text-[#1f6f5b]">
-            Razorpay checkout
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+            isUtilityBill 
+              ? "border-[#c6d7f8] bg-[#eef4ff] text-[#1f6ad8]" 
+              : "border-[#bde4cf] bg-[#eefaf3] text-[#1a6641]"
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${isUtilityBill ? "bg-[#1f6ad8]" : "bg-[#1a6641]"}`} />
+            {isUtilityBill ? "BBPS Instant Settlement" : "1-Click UPI Checkout"}
           </span>
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-6 lg:grid-cols-[1fr_360px]">
-        <section className="rounded-lg border border-[#dce5e2] bg-white p-5 shadow-sm">
+      <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_380px]">
+        <section className="rounded-[24px] border border-[#dbe4f0] bg-white p-6 sm:p-7 shadow-xs">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-[#1f6f5b]">{invoice.invoiceNumber || "Rent invoice"}</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight">{invoice.tenantName || "Tenant"}</h1>
-              <p className="mt-2 text-sm font-medium text-[#5d6d68]">
-                Payee: {invoice.companyName || "Rentomatic"}
+              <span className={`inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md ${
+                isUtilityBill ? "bg-[#e8f0fe] text-[#1f6ad8]" : "bg-[#eef4ff] text-[#1f6ad8]"
+              }`}>
+                {isUtilityBill ? "Electricity Bill" : (invoice.invoiceNumber || "Rent Statement")}
+              </span>
+              <h1 className="mt-2.5 text-3xl font-bold tracking-tight text-[#182133]">
+                {invoice.tenantName || "Valued Customer"}
+              </h1>
+              <p className="mt-1.5 text-sm font-medium text-[#60708d]">
+                {isUtilityBill ? "Biller: " : "Payee: "}
+                <span className="font-semibold text-[#182133]">{invoice.companyName || "Rentomatic"}</span>
               </p>
-              <p className="mt-2 text-[#5d6d68]">{invoice.tenantEmail || "Email not available"}</p>
+              {invoice.tenantEmail && (
+                <p className="mt-1 text-xs text-[#60708d]">{invoice.tenantEmail}</p>
+              )}
             </div>
             <div
-              className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${
+              className={`w-fit rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider ${
                 paid
-                  ? "bg-[#e9f8ef] text-[#207348]"
+                  ? "bg-[#d4f4e2] text-[#1a6641] border border-[#a8dfc0]"
                   : statusLabel === "Under review"
-                  ? "bg-[#eef7ff] text-[#145b8d]"
+                  ? "bg-[#eef7ff] text-[#145b8d] border border-[#cbe4fb]"
                   : statusLabel === "Failed"
-                  ? "bg-[#fff0ed] text-[#a33d2f]"
-                  : "bg-[#fff7df] text-[#80610d]"
+                  ? "bg-[#ffe4e1] text-[#9b2a1f] border border-[#f5c6cb]"
+                  : "bg-[#fff4d6] text-[#8a6000] border border-[#fae2a0]"
               }`}
             >
-              {statusLabel}
+              {paid ? "✓ SETTLED & PAID" : statusLabel}
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <InfoTile label="Amount" value={amountText} strong />
-            <InfoTile label="Due date" value={invoice.dueDate || "Due soon"} />
-            <InfoTile label="Invoice ID" value={invoice.invoiceId} compact />
+            <InfoTile label="Total Payable" value={amountText} strong />
+            <InfoTile label="Due Date" value={invoice.dueDate || "Due on presentation"} />
+            <InfoTile label={isUtilityBill ? "Consumer Number" : "Invoice Ref"} value={isUtilityBill ? invoice.invoiceNumber?.replace("EBILL-", "") || invoice.invoiceId : invoice.invoiceId} compact />
           </div>
 
-          <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
-            <h2 className="font-semibold">Before you pay</h2>
+          <div className="mt-6 rounded-[20px] border border-[#e2ebf6] bg-[#f8fbff] p-5">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#182133]">
+              {isUtilityBill ? "⚡ BBPS Settlement Assurance" : "Payment Verification Steps"}
+            </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <TrustStep title="Review invoice" text="Check the amount and due date." active />
+              <TrustStep 
+                title={isUtilityBill ? "1. Verified Bill" : "1. Review Amount"} 
+                text={isUtilityBill ? "Fetched live from State DISCOM via BBPS." : "Check monthly rent & details."} 
+                active 
+              />
               <TrustStep
-                title="Choose payment"
-                text="Razorpay or bank transfer proof upload."
+                title={isUtilityBill ? "2. Instant Clearing" : "2. Choose Method"}
+                text={isUtilityBill ? "Directly credited to DISCOM without delay." : "UPI, Netbanking, Cards or Proof."}
                 active={!paid && !manualReviewPending}
               />
               <TrustStep
-                title={manualReviewPending ? "Landlord review" : "Receipt email"}
+                title={paid ? "Official Receipt" : manualReviewPending ? "Owner Review" : "Instant Receipt"}
                 text={
                   paid
-                    ? "Payment is already complete."
+                    ? "Download government BBPS clearing receipt."
                     : manualReviewPending
-                    ? "Proof submitted. Waiting for landlord approval."
-                    : "Sent after payment succeeds."
+                    ? "Proof under landlord verification."
+                    : "Delivered immediately after checkout."
                 }
                 active={paid || manualReviewPending}
               />
@@ -411,35 +446,57 @@ export default function PayPage() {
           </div>
 
           {error && (
-            <div className="mt-5 rounded-lg border border-[#f0c9c2] bg-[#fff7f5] p-4 text-sm text-[#8e3429]">
+            <div className="mt-5 rounded-[16px] border border-[#f5c6cb] bg-[#fff8f8] p-4 text-sm text-[#9b2a1f]">
               {error}
             </div>
           )}
         </section>
 
-        <aside className="rounded-lg border border-[#dce5e2] bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-[#5d6d68]">Amount payable</p>
-          <p className="mt-2 text-4xl font-bold">{amountText}</p>
-          <p className="mt-2 text-sm text-[#6f7e79]">Paid receipts are sent to the tenant email after successful verification.</p>
-          {!paid&&<label className="mt-5 block text-sm font-semibold text-[#5d6d68]">Pay a partial amount (optional)<input type="number" min="1" max={invoice.amount/100} step="0.01" value={partialRupees} onChange={e=>setPartialRupees(e.target.value)} placeholder={`Full balance ${amountText}`} className="mt-2 w-full rounded-lg border border-[#d5dfdc] px-4 py-3"/><span className="mt-1 block text-xs font-normal">Leave blank to pay the full outstanding balance.</span></label>}
+        <aside className="rounded-[24px] border border-[#dbe4f0] bg-white p-6 sm:p-7 shadow-xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#60708d]">
+            {isUtilityBill ? "Total Electricity Bill" : "Amount Payable"}
+          </p>
+          <p className="mt-2 text-4xl font-extrabold text-[#182133] tracking-tight">{amountText}</p>
+          <p className="mt-2 text-xs text-[#60708d] leading-relaxed">
+            {isUtilityBill 
+              ? "Official BBPS receipt with NPCI reference number generated instantly upon payment." 
+              : "Paid rent receipts are delivered to your WhatsApp and email automatically."}
+          </p>
+
+          {!paid && !isUtilityBill && (
+            <label className="mt-5 block text-xs font-bold uppercase tracking-wider text-[#60708d]">
+              Pay a partial amount (optional)
+              <input 
+                type="number" 
+                min="1" 
+                max={invoice.amount / 100} 
+                step="0.01" 
+                value={partialRupees} 
+                onChange={e => setPartialRupees(e.target.value)} 
+                placeholder={`Full balance ${amountText}`} 
+                className="mt-2 w-full rounded-[14px] border border-[#d7e1ef] px-4 py-2.5 text-sm font-medium text-[#182133] outline-none focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
+              />
+              <span className="mt-1 block text-[11px] font-normal text-[#8091a5]">Leave blank to pay the full balance.</span>
+            </label>
+          )}
 
           {manualStatusLabel && !paid && (
-            <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#6f7e79]">Manual payment review</p>
-              <p className="mt-2 font-semibold text-[#17211f]">{manualStatusLabel}</p>
+            <div className="mt-5 rounded-[16px] border border-[#dbe4f0] bg-[#f8fbff] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#60708d]">Manual Verification</p>
+              <p className="mt-1 font-semibold text-[#182133]">{manualStatusLabel}</p>
               {invoice?.manualPaymentMethod && (
-                <p className="mt-1 text-sm text-[#5d6d68]">Method: {paymentMethodLabel(invoice.manualPaymentMethod)}</p>
+                <p className="mt-1 text-xs text-[#60708d]">Method: {paymentMethodLabel(invoice.manualPaymentMethod)}</p>
               )}
               {invoice?.manualPaymentReviewNote && (
-                <p className="mt-2 text-sm text-[#5d6d68]">{invoice.manualPaymentReviewNote}</p>
+                <p className="mt-2 text-xs text-[#60708d] bg-white p-2.5 rounded-[10px] border border-[#e2ebf6]">{invoice.manualPaymentReviewNote}</p>
               )}
               {manualReviewPending && (
                 <button
                   type="button"
                   onClick={refreshInvoice}
-                  className="mt-4 w-full rounded-lg border border-[#cfe0da] px-4 py-3 text-sm font-semibold text-[#1f6f5b] transition hover:bg-[#eef7f3]"
+                  className="mt-3 w-full rounded-[12px] border border-[#c6d7f8] bg-white px-3 py-2 text-xs font-bold text-[#1f6ad8] transition hover:bg-[#eef4ff]"
                 >
-                  Refresh review status
+                  Refresh status
                 </button>
               )}
             </div>
@@ -451,36 +508,36 @@ export default function PayPage() {
                 href={invoice.publicUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="block w-full rounded-lg border border-[#bfd6cf] px-4 py-3 text-center font-semibold text-[#1f6f5b] transition hover:bg-[#eef7f3]"
+                className="block w-full rounded-[16px] border border-[#dbe4f0] bg-[#f8fbff] px-4 py-3 text-center text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eef4ff] hover:border-[#c6d7f8]"
               >
-                {paid ? "View paid invoice PDF" : "View invoice PDF"}
+                {paid ? "📄 View Verified Receipt PDF" : "📄 View Statement PDF"}
               </a>
             )}
 
             <button
               onClick={startPayment}
               disabled={Boolean(paid) || paying}
-              className={`w-full rounded-lg px-4 py-3 font-semibold transition ${
+              className={`w-full rounded-[16px] px-4 py-3.5 text-sm font-bold text-white shadow-sm transition ${
                 paid
-                  ? "cursor-not-allowed bg-[#e9f8ef] text-[#207348]"
-                  : "bg-[#1f6f5b] text-white hover:bg-[#185846] hover:shadow-md"
+                  ? "cursor-not-allowed bg-[#d4f4e2] text-[#1a6641] shadow-none"
+                  : "bg-gradient-to-r from-[#1f6ad8] to-[#144eb0] hover:from-[#1a5bc0] hover:to-[#103d8d] hover:shadow-md active:scale-[0.99]"
               }`}
             >
-              {paid ? "Payment complete" : paying ? "Opening secure checkout..." : "Pay now"}
+              {paid ? "✓ Payment Settled" : paying ? "Opening Cashfree UPI..." : "💳 Pay with UPI / GPay / Cards"}
             </button>
 
             {!paid && paying && (
-              <p className="text-center text-sm text-[#6f7e79]">Keep this page open until checkout finishes.</p>
+              <p className="text-center text-xs text-[#60708d]">Keep this window open until payment is confirmed.</p>
             )}
           </div>
 
           {!paid && !manualReviewPending && (
             <>
-              <div className="mt-6 grid grid-cols-2 gap-2 text-center text-xs font-semibold text-[#5d6d68]">
-                <span className="rounded bg-[#f1f5f3] px-2 py-2">UPI</span>
-                <span className="rounded bg-[#f1f5f3] px-2 py-2">Card</span>
-                <span className="rounded bg-[#f1f5f3] px-2 py-2">Wallet</span>
-                <span className="rounded bg-[#f1f5f3] px-2 py-2">Netbanking</span>
+              <div className="mt-5 grid grid-cols-4 gap-1.5 text-center text-[10px] font-bold text-[#60708d]">
+                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">GPay</span>
+                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">PhonePe</span>
+                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">Paytm</span>
+                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">Cards</span>
               </div>
 
               <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
