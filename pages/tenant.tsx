@@ -743,8 +743,10 @@ export default function TenantHome() {
                                     </td>
                                     <td className="p-3.5">
                                       <button
-                                        onClick={() => {
-                                          window.open(`${api}/utility/receipts/${bill.id}/download`, "_blank")
+                                        onClick={async () => {
+                                          const access = await token()
+                                          if (!access) return
+                                          window.open(`${api}/utility/receipts/${bill.id}/download?token=${encodeURIComponent(access)}`, "_blank")
                                         }}
                                         className="rounded-[8px] border border-[#dbe4f0] px-2.5 py-1 text-[11px] font-semibold text-[#1f6ad8] hover:bg-[#f4f8ff]"
                                       >
