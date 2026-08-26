@@ -540,78 +540,93 @@ export default function PayPage() {
                 <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">Cards</span>
               </div>
 
-              <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
-                <p className="text-sm font-semibold text-[#17211f]">Pay by UPI or bank transfer</p>
-                <p className="mt-2 text-sm text-[#5d6d68]">
-                  After payment, upload a screenshot so your landlord can review and approve it.
-                </p>
-
-                <div className="mt-4 space-y-2 rounded-lg border border-[#e1e8e6] bg-white p-4 text-sm text-[#17211f]">
-                  {invoice.bankName && <p><span className="font-semibold">Bank:</span> {invoice.bankName}</p>}
-                  {invoice.accountNumber && <p><span className="font-semibold">Account:</span> {invoice.accountNumber}</p>}
-                  {invoice.branchName && <p><span className="font-semibold">Branch:</span> {invoice.branchName}</p>}
-                  {invoice.ifsc && <p><span className="font-semibold">IFSC:</span> {invoice.ifsc}</p>}
-                  {invoice.upi && <p><span className="font-semibold">UPI:</span> {invoice.upi}</p>}
+              {invoice.invoiceNumber?.startsWith("EBILL") ||
+              invoice.companyName?.toLowerCase().includes("board") ||
+              invoice.companyName?.toLowerCase().includes("discom") ||
+              invoice.companyName?.toLowerCase().includes("electricity") ||
+              invoice.companyName?.toLowerCase().includes("gas") ? (
+                <div className="mt-6 rounded-2xl border border-[#d8e5fc] bg-[#f5f9ff] p-4 text-center">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1f6ad8]">
+                    ⚡ Bharat Connect (BBPS) Direct Clearing
+                  </span>
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#51637d]">
+                    To guarantee instant clearing with your DISCOM/Board and provide official BBPS receipts, utility bills must be paid online via UPI, Cards, or Netbanking above.
+                  </p>
                 </div>
+              ) : (
+                <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
+                  <p className="text-sm font-semibold text-[#17211f]">Pay by UPI or bank transfer</p>
+                  <p className="mt-2 text-sm text-[#5d6d68]">
+                    After payment, upload a screenshot so your landlord can review and approve it.
+                  </p>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {["UPI", "NEFT_RTGS"].map((option) => {
-                    const selected = manualMethod === option
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => setManualMethod(option)}
-                        className={`rounded-lg border px-3 py-3 text-sm font-semibold transition ${
-                          selected
-                            ? "border-[#1f6f5b] bg-[#eef7f3] text-[#1f6f5b]"
-                            : "border-[#d5dfdc] bg-white text-[#5d6d68]"
-                        }`}
-                      >
-                        {paymentMethodLabel(option)}
-                      </button>
-                    )
-                  })}
+                  <div className="mt-4 space-y-2 rounded-lg border border-[#e1e8e6] bg-white p-4 text-sm text-[#17211f]">
+                    {invoice.bankName && <p><span className="font-semibold">Bank:</span> {invoice.bankName}</p>}
+                    {invoice.accountNumber && <p><span className="font-semibold">Account:</span> {invoice.accountNumber}</p>}
+                    {invoice.branchName && <p><span className="font-semibold">Branch:</span> {invoice.branchName}</p>}
+                    {invoice.ifsc && <p><span className="font-semibold">IFSC:</span> {invoice.ifsc}</p>}
+                    {invoice.upi && <p><span className="font-semibold">UPI:</span> {invoice.upi}</p>}
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {["UPI", "NEFT_RTGS"].map((option) => {
+                      const selected = manualMethod === option
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setManualMethod(option)}
+                          className={`rounded-lg border px-3 py-3 text-sm font-semibold transition ${
+                            selected
+                              ? "border-[#1f6f5b] bg-[#eef7f3] text-[#1f6f5b]"
+                              : "border-[#d5dfdc] bg-white text-[#5d6d68]"
+                          }`}
+                        >
+                          {paymentMethodLabel(option)}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <label className="mt-4 block text-sm font-semibold text-[#17211f]">
+                    Payment screenshot
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                      className="mt-2 block w-full rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f]"
+                    />
+                  </label>
+
+                  <label className="mt-4 block text-sm font-semibold text-[#17211f]">
+                    Note or reference
+                    <textarea
+                      value={manualNote}
+                      onChange={(event) => setManualNote(event.target.value)}
+                      rows={3}
+                      placeholder="UPI reference, bank transaction note, or anything helpful"
+                      className="mt-2 w-full resize-none rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f] outline-none transition placeholder:text-[#8a9894] focus:border-[#1f6f5b] focus:ring-2 focus:ring-[#d8ebe4]"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={submitManualProof}
+                    disabled={uploadingProof || !proofFile}
+                    className={`mt-4 w-full rounded-lg px-4 py-3 font-semibold transition ${
+                      uploadingProof || !proofFile
+                        ? "cursor-not-allowed bg-[#d7dfdc] text-[#7d8a86]"
+                        : "bg-[#1f6f5b] text-white hover:bg-[#185846] hover:shadow-md"
+                    }`}
+                  >
+                    {uploadingProof ? "Uploading proof..." : "Upload payment proof"}
+                  </button>
+
+                  {manualMessage && (
+                    <p className="mt-3 text-sm text-[#1f6f5b]">{manualMessage}</p>
+                  )}
                 </div>
-
-                <label className="mt-4 block text-sm font-semibold text-[#17211f]">
-                  Payment screenshot
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setProofFile(event.target.files?.[0] || null)}
-                    className="mt-2 block w-full rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f]"
-                  />
-                </label>
-
-                <label className="mt-4 block text-sm font-semibold text-[#17211f]">
-                  Note or reference
-                  <textarea
-                    value={manualNote}
-                    onChange={(event) => setManualNote(event.target.value)}
-                    rows={3}
-                    placeholder="UPI reference, bank transaction note, or anything helpful"
-                    className="mt-2 w-full resize-none rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f] outline-none transition placeholder:text-[#8a9894] focus:border-[#1f6f5b] focus:ring-2 focus:ring-[#d8ebe4]"
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={submitManualProof}
-                  disabled={uploadingProof || !proofFile}
-                  className={`mt-4 w-full rounded-lg px-4 py-3 font-semibold transition ${
-                    uploadingProof || !proofFile
-                      ? "cursor-not-allowed bg-[#d7dfdc] text-[#7d8a86]"
-                      : "bg-[#1f6f5b] text-white hover:bg-[#185846] hover:shadow-md"
-                  }`}
-                >
-                  {uploadingProof ? "Uploading proof..." : "Upload payment proof"}
-                </button>
-
-                {manualMessage && (
-                  <p className="mt-3 text-sm text-[#1f6f5b]">{manualMessage}</p>
-                )}
-              </div>
+              )}
             </>
           )}
 
