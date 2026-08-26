@@ -744,9 +744,29 @@ export default function TenantHome() {
                                     <td className="p-3.5">
                                       <button
                                         onClick={async () => {
-                                          const access = await token()
-                                          if (!access) return
-                                          window.open(`${api}/utility/receipts/${bill.id}/download?token=${encodeURIComponent(access)}`, "_blank")
+                                          try {
+                                            const access = await token()
+                                            if (!access) return
+                                            const response = await fetch(`${api}/utility/receipts/${bill.id}/download`, {
+                                              headers: { Authorization: `Bearer ${access}` }
+                                            })
+                                            if (!response.ok) {
+                                              const err = await response.text()
+                                              alert(`Could not download receipt: ${err}`)
+                                              return
+                                            }
+                                            const blob = await response.blob()
+                                            const blobUrl = window.URL.createObjectURL(blob)
+                                            const a = document.createElement("a")
+                                            a.href = blobUrl
+                                            a.download = `receipt_BBPS_${bill.id.slice(0, 8)}.html`
+                                            document.body.appendChild(a)
+                                            a.click()
+                                            a.remove()
+                                            window.URL.revokeObjectURL(blobUrl)
+                                          } catch (err: any) {
+                                            alert(err.message || "Failed to download receipt")
+                                          }
                                         }}
                                         className="rounded-[8px] border border-[#dbe4f0] px-2.5 py-1 text-[11px] font-semibold text-[#1f6ad8] hover:bg-[#f4f8ff]"
                                       >
