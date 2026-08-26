@@ -41,6 +41,7 @@ export type TenantUtilityBill = {
   units_consumed?: number
   status: "UNPAID" | "PAYMENT_PENDING" | "SETTLEMENT_PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "REVIEW_REQUIRED"
   paid_at?: string
+  created_at?: string
 }
 
 export type TenantUtilityReceipt = {
@@ -604,8 +605,20 @@ export default function TenantHome() {
             <Card title="⚡ Electricity & Utility Bills">
               {(() => {
                 const accounts = d.utilityAccounts || []
-                const bills = d.utilityBills || []
+                const rawBills = d.utilityBills || []
                 const receipts = d.utilityReceipts || []
+
+                // Deduplicate bills by meter / account to only take the latest bill per meter
+                const billMap = new Map<string, typeof rawBills[0]>()
+                const sorted = [...rawBills].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
+                for (const b of sorted) {
+                  if (b.status === "CANCELLED") continue
+                  const key = b.utility_account_id || b.rent_id
+                  if (!billMap.has(key)) {
+                    billMap.set(key, b)
+                  }
+                }
+                const bills = Array.from(billMap.values())
 
                 const dueNowBills = bills.filter(b => b.status === "UNPAID" || b.status === "PAYMENT_PENDING" || b.status === "OVERDUE")
                 const processingBills = bills.filter(b => b.status === "SETTLEMENT_PENDING")
