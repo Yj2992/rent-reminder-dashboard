@@ -649,7 +649,12 @@ export default function TenantHome() {
                                   <button
                                     onClick={async () => {
                                       try {
-                                        const res = await axios.post(`${api}/tenant/utility-bills/${bill.id}/payment-order`)
+                                        const access = await token()
+                                        const res = await axios.post(
+                                          `${api}/tenant/utility-bills/${bill.id}/payment-order`,
+                                          {},
+                                          { headers: { Authorization: `Bearer ${access}` } }
+                                        )
                                         if (res.data?.paymentToken) {
                                           router.push(`/pay/${res.data.paymentToken}`)
                                         } else if (res.data?.paymentUrl) {
@@ -725,7 +730,6 @@ export default function TenantHome() {
                             <tbody className="divide-y divide-[#eef3fa]">
                               {paidBills.map(bill => {
                                 const acc = accounts.find(a => a.id === bill.utility_account_id)
-                                const receipt = receipts.find(r => r.bill_id === bill.id)
 
                                 return (
                                   <tr key={bill.id}>
@@ -739,17 +743,8 @@ export default function TenantHome() {
                                     </td>
                                     <td className="p-3.5">
                                       <button
-                                        onClick={async () => {
-                                          try {
-                                            const res = await axios.get(`${api}/utility/receipts/${bill.id}`)
-                                            if (res.data?.downloadUrl) {
-                                              window.open(res.data.downloadUrl, "_blank")
-                                            } else {
-                                              alert(`Receipt No: ${receipt?.receipt_number || "REC-BBPS-" + bill.id.slice(0, 8)} (Official BBPS Record Verified)`)
-                                            }
-                                          } catch {
-                                            alert(`Receipt No: ${receipt?.receipt_number || "REC-BBPS-" + bill.id.slice(0, 8)} (Official BBPS Record Verified)`)
-                                          }
+                                        onClick={() => {
+                                          window.open(`${api}/utility/receipts/${bill.id}/download`, "_blank")
                                         }}
                                         className="rounded-[8px] border border-[#dbe4f0] px-2.5 py-1 text-[11px] font-semibold text-[#1f6ad8] hover:bg-[#f4f8ff]"
                                       >
