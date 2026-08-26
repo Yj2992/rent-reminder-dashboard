@@ -567,52 +567,91 @@ export default function TenantHome() {
           )}
 
           {tab === "utilities" && (
-            <Card title="⚡ Bharat Connect (BBPS) Electricity Desk">
-              <div className="rounded-[18px] border border-[#c6d7f8] bg-[#f4f8ff] p-5">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1f6ad8] text-white font-bold text-lg shadow-sm">⚡</span>
-                  <div>
-                    <h3 className="font-bold text-[#182133] text-base">Direct DISCOM Utility Payments</h3>
-                    <p className="text-xs text-[#60708d]">Pay electricity bills live via official Bharat Connect (BBPS) with instant clearing</p>
+            <Card title="⚡ Electricity & Utility Bills">
+              <div className="space-y-6">
+                {/* 1. DUE NOW GROUP */}
+                <div>
+                  <h3 className="text-base font-bold text-[#182133]">Due Now</h3>
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-[20px] border border-[#dbe4f0] bg-white p-5 shadow-sm transition hover:shadow-md">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#dde7ff] text-xs font-bold text-[#1f6ad8]">⚡</span>
+                            <h4 className="font-bold text-[#182133]">MSEDCL (Maharashtra State Electricity)</h4>
+                          </div>
+                          <p className="mt-1 text-xs text-[#60708d]">
+                            Consumer No: <span className="font-mono font-semibold text-[#182133]">••••••278839</span> · Due 03-Sep-2026
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-extrabold text-[#182133]">₹530.00</span>
+                          <span className="ml-2 rounded-full bg-[#ffe4e1] px-2 py-0.5 text-[11px] font-bold text-[#9b2a1f]">DUE</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2 border-t border-[#f0f4f9] pt-3">
+                        <button
+                          onClick={() => router.push("/pay/util_000091278839")}
+                          className="rounded-[12px] bg-[#1f6ad8] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#144eb0]"
+                        >
+                          Review & Pay Now →
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6 rounded-[20px] border border-[#dbe4f0] bg-white p-6 shadow-xs">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-[#182133]">Fetch & Pay Live Electricity Bill</h4>
-                <p className="text-xs text-[#60708d] mt-1">Enter your electricity consumer number to fetch your latest bill from your state board.</p>
-                
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    const form = e.currentTarget
-                    const consumer = (form.elements.namedItem("consumer") as HTMLInputElement)?.value?.trim()
-                    if (consumer) {
-                      router.push(`/pay/util_${encodeURIComponent(consumer)}`)
-                    }
-                  }}
-                  className="mt-4 flex flex-col sm:flex-row gap-3"
-                >
-                  <input
-                    name="consumer"
-                    type="text"
-                    required
-                    placeholder="Enter Consumer Number (e.g. 000091278839)"
-                    className="flex-1 rounded-[14px] border border-[#d7e1ef] bg-[#fcfdff] px-4 py-3 text-sm font-medium text-[#182133] outline-none focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-[14px] bg-[#1f6ad8] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#144eb0] active:scale-[0.99]"
-                  >
-                    ⚡ Fetch & Pay Bill
-                  </button>
-                </form>
+                {/* 2. PROCESSING GROUP */}
+                <div>
+                  <h3 className="text-base font-bold text-[#182133]">Processing Settlements</h3>
+                  <div className="mt-2 rounded-[16px] border border-[#f0dfa0] bg-[#fffdf2] p-4 text-xs text-[#8a6000]">
+                    <div className="flex items-center gap-2 font-bold">
+                      <span>⏳</span>
+                      <span>Payment received — Settlement in progress</span>
+                    </div>
+                    <p className="mt-1 text-[#60708d]">
+                      When your payment is confirmed by Cashfree, our BBPS engine clears the bill directly with your DISCOM. No further action is required from you.
+                    </p>
+                  </div>
+                </div>
 
-                <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-[#edf2f8] text-center text-xs font-semibold text-[#60708d]">
-                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">MSEDCL (Maharashtra)</div>
-                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">BESCOM (Bangalore)</div>
-                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">BSES (Delhi)</div>
-                  <div className="p-2.5 rounded-[12px] bg-[#f8fbff] border border-[#e2ebf6]">All 50+ DISCOMs</div>
+                {/* 3. HISTORY GROUP */}
+                <div>
+                  <h3 className="text-base font-bold text-[#182133]">Payment History & Official Receipts</h3>
+                  <div className="mt-3 overflow-hidden rounded-[16px] border border-[#dbe4f0] bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-[#dbe4f0] bg-[#f8fafc] text-[#60708d]">
+                        <tr>
+                          <th className="p-3.5 font-semibold">Utility Board</th>
+                          <th className="p-3.5 font-semibold">Billing Period</th>
+                          <th className="p-3.5 font-semibold">Amount</th>
+                          <th className="p-3.5 font-semibold">Status</th>
+                          <th className="p-3.5 font-semibold">Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#eef3fa]">
+                        <tr>
+                          <td className="p-3.5 font-bold text-[#182133]">MSEDCL</td>
+                          <td className="p-3.5 text-[#60708d]">July 2026</td>
+                          <td className="p-3.5 font-bold text-[#182133]">₹480.00</td>
+                          <td className="p-3.5">
+                            <span className="rounded-full bg-[#d4f4e2] px-2 py-0.5 text-[10px] font-bold text-[#1a6641]">
+                              BBPS CLEARED
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <button
+                              onClick={() => alert("Verified BBPS Receipt Reference: BBPS9827361829")}
+                              className="rounded-[8px] border border-[#dbe4f0] px-2.5 py-1 text-[11px] font-semibold text-[#1f6ad8] hover:bg-[#f4f8ff]"
+                            >
+                              Download Receipt
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </Card>
