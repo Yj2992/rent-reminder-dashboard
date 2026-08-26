@@ -647,7 +647,20 @@ export default function TenantHome() {
 
                                 <div className="mt-4 flex gap-2 border-t border-[#f0f4f9] pt-3">
                                   <button
-                                    onClick={() => router.push(`/pay/${bill.id}`)}
+                                    onClick={async () => {
+                                      try {
+                                        const res = await axios.post(`${api}/tenant/utility-bills/${bill.id}/payment-order`)
+                                        if (res.data?.paymentToken) {
+                                          router.push(`/pay/${res.data.paymentToken}`)
+                                        } else if (res.data?.paymentUrl) {
+                                          router.push(res.data.paymentUrl)
+                                        } else {
+                                          alert(res.data?.message || "Could not initialize checkout. Please try again.")
+                                        }
+                                      } catch (err: any) {
+                                        alert(err.response?.data?.message || "Failed to initialize payment checkout")
+                                      }
+                                    }}
                                     className="rounded-[12px] bg-[#1f6ad8] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#144eb0]"
                                   >
                                     Review & Pay Now →
