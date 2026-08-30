@@ -220,6 +220,37 @@ export default function TenantHome() {
   )
   const paid = useMemo(() => d?.invoices.filter((x) => x.status === "PAID") || [], [d])
 
+  const dedupedUtilityBills = useMemo(() => {
+    const rawBills = d?.utilityBills || []
+    const billMap = new Map<string, TenantUtilityBill>()
+    const sorted = [...rawBills].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
+    for (const b of sorted) {
+      if (b.status === "CANCELLED") continue
+      const key = b.utility_account_id || b.rent_id
+      if (!billMap.has(key)) {
+        billMap.set(key, b)
+      }
+    }
+    return Array.from(billMap.values())
+  }, [d?.utilityBills])
+
+  const dueUtilityBills = useMemo(
+    () => dedupedUtilityBills.filter((b) => b.status === "UNPAID" || b.status === "PAYMENT_PENDING" || b.status === "OVERDUE"),
+    [dedupedUtilityBills]
+  )
+
+  const openRentPaise = useMemo(
+    () => openBills.reduce((sum, invoice) => sum + outstanding(invoice), 0),
+    [openBills]
+  )
+
+  const dueUtilityPaise = useMemo(
+    () => dueUtilityBills.reduce((sum, b) => sum + b.bill_amount_paise, 0),
+    [dueUtilityBills]
+  )
+
+  const totalDuePaise = openRentPaise + dueUtilityPaise
+
   function selectTenancy(index: number) {
     const account = items[index]
     setSelected(index)
@@ -555,12 +586,197 @@ export default function TenantHome() {
           )}
 
           {tab === "home" && (
-            <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Stat label="Amount due" value={money(openBills.reduce((sum, invoice) => sum + outstanding(invoice), 0))} accent />
-                <Stat label="Open requests" value={String(d.maintenance.filter((x) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(x.status)).length)} />
-                <Stat label="Deposit balance" value={d.deposit ? money(balance) : "Not recorded"} />
+            <div className="space-y-6">
+              {/* 1. HERO TOTAL DUE KPI CARD */}
+              <div className="rounded-2xl border border-[#ccd5e4] bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#60708d]">
+                      Total Outstanding Balance
+                    </span>
+                    <h2 className="mt-1 text-3xl font-extrabold text-[#182133] sm:text-4xl">
+                      {money(totalDuePaise)}
+                    </h2>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-md bg-[#eef3fe] px-2.5 py-1 font-semibold text-[#2151c5]">
+                        🏠 Rent: {money(openRentPaise)}
+                      </span>
+                      <span className="rounded-md bg-[#fef8ea] px-2.5 py-1 font-semibold text-[#b57717]">
+                        ⚡ Utilities: {money(dueUtilityPaise)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2.5">
+                    {openBills.length > 0 && openBills[0].payment_token && (
+                      <button
+                        onClick={() => router.push(`/pay/${openBills[0].payment_token}`)}
+                        className="rounded-xl bg-[#2151c5] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a43a7]"
+                      >
+                        Pay Rent Now ({money(openRentPaise)}) →
+                      </button>
+                    )}
+                    {dueUtilityBills.length > 0 && (
+                      <button
+                        onClick={() => setTab("utilities")}
+                        className="rounded-xl border border-[#c6d7f8] bg-[#f4f8ff] px-5 py-3 text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eaf1ff]"
+                      >
+                        ⚡ Settle Utilities ({money(dueUtilityPaise)})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[#edf2f8] pt-4 sm:grid-cols-3">
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <span className="text-[11px] font-semibold text-[#60708d]">Open Invoices</span>
+                    <p className="mt-0.5 text-base font-bold text-[#182133]">{openBills.length}</p>
+                  </div>
+                  <div className="rounded-xl bg-[#f8fafc] p-3">
+                    <span className="text-[11px] font-semibold text-[#60708d]">Maintenance Requests</span>
+                    <p className="mt-0.5 text-base font-bold text-[#182133]">
+                      {d.maintenance.filter((x) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(x.status)).length}
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-xl bg-[#f8fafc] p-3 sm:col-span-1">
+                    <span className="text-[11px] font-semibold text-[#60708d]">Security Deposit</span>
+                    <p className="mt-0.5 text-base font-bold text-[#182133]">
+                      {d.deposit ? money(balance) : "Not recorded"}
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* 2. PENDING RENT INVOICES SECTION */}
+              <div className="rounded-2xl border border-[#ccd5e4] bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#edf2f8] pb-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#eef3fe] text-xs font-bold text-[#2151c5]">🏠</span>
+                    <h3 className="text-base font-bold text-[#182133]">Rent Invoices</h3>
+                  </div>
+                  <button
+                    onClick={() => setTab("bills")}
+                    className="text-xs font-bold text-[#2151c5] hover:underline"
+                  >
+                    View all invoices ({d.invoices.length}) →
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {openBills.length > 0 ? (
+                    openBills.map((bill) => (
+                      <div
+                        key={bill.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dbe4f0] bg-[#fcfdff] p-4 transition hover:border-[#2151c5]"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <b className="text-sm font-bold text-[#182133]">
+                              {bill.invoice_number || "Monthly Rent Invoice"}
+                            </b>
+                            <span className="rounded-full bg-[#ffe4e1] px-2 py-0.5 text-[10px] font-bold text-[#9b2a1f]">
+                              {bill.status}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-[#60708d]">
+                            {bill.due_date ? `Due on ${bill.due_date}` : "Due upon receipt"}
+                            {bill.late_fee_paise ? ` · Incl. ${money(bill.late_fee_paise)} late fee` : ""}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-extrabold text-[#182133]">
+                            {money(outstanding(bill))}
+                          </span>
+                          {bill.payment_token && (
+                            <button
+                              onClick={() => router.push(`/pay/${bill.payment_token}`)}
+                              className="rounded-lg bg-[#2151c5] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#1a43a7]"
+                            >
+                              Pay Rent →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-[#b0e5d8] bg-[#f2faf7] p-4 text-xs font-semibold text-[#0f8a73]">
+                      ✓ Rent is fully up to date. No pending invoices.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. ELECTRICITY & UTILITY BILLS SECTION */}
+              <div className="rounded-2xl border border-[#ccd5e4] bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#edf2f8] pb-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#fef8ea] text-xs font-bold text-[#b57717]">⚡</span>
+                    <h3 className="text-base font-bold text-[#182133]">Electricity &amp; Utility Bills</h3>
+                  </div>
+                  <button
+                    onClick={() => setTab("utilities")}
+                    className="text-xs font-bold text-[#2151c5] hover:underline"
+                  >
+                    View utilities ({dedupedUtilityBills.length}) →
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {dueUtilityBills.length > 0 ? (
+                    dueUtilityBills.map((bill) => {
+                      const acc = (d.utilityAccounts || []).find((a) => a.id === bill.utility_account_id)
+                      const opName = acc?.operator_name || bill.provider || "Electricity Board"
+                      const consumer = acc?.consumer_number || bill.consumer_name || ""
+
+                      return (
+                        <div
+                          key={bill.id}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dbe4f0] bg-[#fcfdff] p-4 transition hover:border-[#1f6ad8]"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <b className="text-sm font-bold text-[#182133]">{opName}</b>
+                              <span className="rounded-full bg-[#ffe4e1] px-2 py-0.5 text-[10px] font-bold text-[#9b2a1f]">
+                                {bill.status}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-[#60708d]">
+                              Consumer No: <span className="font-mono font-semibold text-[#182133]">{consumer}</span>
+                              {bill.due_date ? ` · Due ${bill.due_date}` : ""}
+                              {bill.units_consumed ? ` · ${bill.units_consumed} units` : ""}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-base font-extrabold text-[#182133]">
+                              {money(bill.bill_amount_paise)}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (consumer) {
+                                  router.push(`/pay/util_${encodeURIComponent(consumer)}`)
+                                } else {
+                                  setTab("utilities")
+                                }
+                              }}
+                              className="rounded-lg bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#144eb0]"
+                            >
+                              ⚡ Pay Bill →
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="rounded-xl border border-[#b0e5d8] bg-[#f2faf7] p-4 text-xs font-semibold text-[#0f8a73]">
+                      ✓ All electricity and utility bills are settled.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. RECENT NOTIFICATIONS & QUICK ACTIONS */}
               {d.notifications?.length > 0 && (
                 <Card title="Recent updates">
                   {d.notifications.slice(0, 5).map((n: any) => (
@@ -571,17 +787,24 @@ export default function TenantHome() {
                   ))}
                 </Card>
               )}
-              <Card title="Next actions">
+
+              <Card title="Quick actions">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Action
-                    text={openBills.length ? `${openBills.length} bill${openBills.length > 1 ? "s" : ""} need attention` : "Rent is up to date"}
-                    go={() => setTab("bills")}
+                    text="Report or track maintenance"
+                    go={() => setTab("maintenance")}
                   />
-                  <Action text="Report or track maintenance" go={() => setTab("maintenance")} />
-                  <Action text={`${d.documents.length} shared document${d.documents.length === 1 ? "" : "s"}`} go={() => setTab("documents")} />
+                  <Action
+                    text={`${d.documents.length} shared document${d.documents.length === 1 ? "" : "s"}`}
+                    go={() => setTab("documents")}
+                  />
+                  <Action
+                    text="View lease & tenancy details"
+                    go={() => setTab("lease")}
+                  />
                 </div>
               </Card>
-            </>
+            </div>
           )}
 
           {tab === "bills" && (
