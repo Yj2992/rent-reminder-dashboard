@@ -22,7 +22,7 @@ type Invoice = {
 export type TenantUtilityAccount = {
   id: string
   rent_id: string
-  utility_type: "ELECTRICITY" | "GAS"
+  utility_type: "ELECTRICITY" | "GAS" | "WATER"
   operator_id: string
   operator_name: string
   consumer_number: string
