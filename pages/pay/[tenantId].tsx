@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import axios from "axios"
 import { useRouter } from "next/router"
 import { TenantPortalInvoice, TenantPortalPaymentOrder } from "../../lib/contracts"
@@ -6,7 +6,6 @@ import {
   OWNER_BACKEND_BASE_URL,
   PAYMENTS_CREATE_ORDER_PATH,
   PAYMENTS_MANUAL_PROOF_PATH,
-  PAYMENTS_VERIFY_PATH,
   PUBLIC_INVOICES_PATH,
   canonicalPaymentStatus,
   isManualPaymentApproved,
@@ -43,6 +42,13 @@ function loadCashfreeScript(): Promise<void> {
     script.onerror = () => reject(new Error("Failed to load Cashfree checkout SDK"))
     document.body.appendChild(script)
   })
+}
+
+function newPaymentAttemptKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `checkout-${crypto.randomUUID()}`
+  }
+  return `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 function formatAmount(amountPaise: number, currency: string) {
@@ -109,6 +115,7 @@ export default function PayPage() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [manualMessage, setManualMessage] = useState("")
   const [partialRupees,setPartialRupees]=useState("")
+  const paymentAttempt = useRef<{ key: string; amount?: number } | null>(null)
 
   const manualReviewStatus = invoice?.manualPaymentStatus?.trim().toUpperCase() || ""
   const paymentStatus = canonicalPaymentStatus(invoice?.status)
@@ -136,21 +143,9 @@ export default function PayPage() {
       .then((response) => {
         setInvoice(response.data)
 
-        // Handle Cashfree return URL query param
+        // FI-004: provider return only moves the browser to authoritative status polling.
         if (order_id && typeof order_id === "string") {
-          axios
-            .post(`${backendBaseUrl}/payments/verify-cashfree`, {
-              token,
-              order_id,
-            })
-            .then((res) => {
-              if (res.data?.ok) {
-                router.push(`/success?invoice=${encodeURIComponent(response.data.invoiceId)}&token=${encodeURIComponent(token)}`)
-              }
-            })
-            .catch(() => {
-              /* Handled */
-            })
+          router.push(`/success?invoice=${encodeURIComponent(response.data.invoiceId)}&token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(order_id)}`)
         }
       })
       .catch(() => setError("This payment link is invalid or no longer available."))
@@ -182,7 +177,14 @@ export default function PayPage() {
       if (requestedAmount != null && (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount > invoice.amount)) {
         throw new Error("Enter a partial amount up to the outstanding balance.")
       }
-      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, { token, amount: requestedAmount })
+      if (!paymentAttempt.current || paymentAttempt.current.amount !== requestedAmount) {
+        paymentAttempt.current = { key: newPaymentAttemptKey(), amount: requestedAmount }
+      }
+      const createRes = await axios.post<TenantPortalPaymentOrder>(`${backendBaseUrl}${PAYMENTS_CREATE_ORDER_PATH}`, {
+        token,
+        amount: requestedAmount,
+        idempotencyKey: paymentAttempt.current.key,
+      })
       const order = createRes.data
 
       if (order.gateway === "CASHFREE" && order.paymentSessionId) {
@@ -200,21 +202,7 @@ export default function PayPage() {
             setError(result.error.message || "Cashfree payment was cancelled or failed.")
           }
           if (result.paymentDetails) {
-            axios
-              .post(`${backendBaseUrl}/payments/verify-cashfree`, {
-                token,
-                order_id: order.orderId,
-              })
-              .then((res) => {
-                if (res.data?.ok) {
-                  router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-                } else {
-                  router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-                }
-              })
-              .catch(() => {
-                router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-              })
+            router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(order.orderId)}`)
           }
         })
       } else {
@@ -228,18 +216,8 @@ export default function PayPage() {
           name: invoice.companyName || "Rentomatic",
           description: order.description,
           order_id: order.orderId,
-          handler: async function (response: any) {
-            try {
-              await axios.post(`${backendBaseUrl}${PAYMENTS_VERIFY_PATH}`, {
-                token,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-              })
-              router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-            } catch {
-              router.push(`/failed?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}`)
-            }
+          handler: async function () {
+            await router.push(`/success?invoice=${encodeURIComponent(order.invoiceId)}&token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(order.orderId)}`)
           },
           prefill: {
             name: invoice.tenantName || "",

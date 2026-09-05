@@ -1,0 +1,10 @@
+{
+  "name": "Rentomatic Tenant Portal",
+  "short_name": "Rentomatic",
+  "description": "Tenant Rent & Utility Living Portal",
+  "start_url": "/tenant",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f6f5b",
+  "orientation": "portrait"
+}

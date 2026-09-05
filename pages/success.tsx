@@ -2,7 +2,7 @@ import axios from "axios"
 import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
-import { TenantPortalInvoice } from "../lib/contracts"
+import { TenantPortalInvoice, TenantPortalPaymentStatus } from "../lib/contracts"
 import { OWNER_BACKEND_BASE_URL, PUBLIC_INVOICES_PATH } from "../lib/sharedRules"
 
 const backendBaseUrl =
@@ -20,18 +20,21 @@ export default function Success() {
   const router = useRouter()
   const invoiceId = Array.isArray(router.query.invoice) ? router.query.invoice[0] : router.query.invoice
   const token = Array.isArray(router.query.token) ? router.query.token[0] : router.query.token
+  const orderId = Array.isArray(router.query.order_id) ? router.query.order_id[0] : router.query.order_id
   const [invoice, setInvoice] = useState<TenantPortalInvoice | null>(null)
+  const [paymentStatus, setPaymentStatus] = useState<TenantPortalPaymentStatus | null>(null)
   const [loading, setLoading] = useState(Boolean(token))
   const [message, setMessage] = useState("Refreshing paid invoice...")
 
-  const paid = invoice?.alreadyPaid || invoice?.status === "PAID"
+  const paid = paymentStatus?.status === "PAID"
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
     [invoice]
   )
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !orderId) {
+      setMessage("A payment reference is required to check authoritative status.")
       setLoading(false)
       return
     }
@@ -42,24 +45,34 @@ export default function Success() {
     async function loadPaidInvoice() {
       attempts += 1
       try {
-        const response = await axios.get<TenantPortalInvoice>(
-          `${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`
+        const statusResponse = await axios.get<TenantPortalPaymentStatus>(
+          `${backendBaseUrl}/public/payments/status?token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(orderId)}`
         )
         if (cancelled) return
-        setInvoice(response.data)
+        setPaymentStatus(statusResponse.data)
 
-        const isPaid = response.data.alreadyPaid || response.data.status === "PAID"
-        if (isPaid && response.data.publicUrl) {
-          setMessage("Paid invoice is ready.")
+        if (statusResponse.data.status === "PAID") {
+          const invoiceResponse = await axios.get<TenantPortalInvoice>(
+            `${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`
+          )
+          if (cancelled) return
+          setInvoice(invoiceResponse.data)
+          setMessage(statusResponse.data.message || "Payment has been committed.")
+          setLoading(false)
+          return
+        }
+
+        if (statusResponse.data.status === "FAILED" || statusResponse.data.status === "RECONCILIATION_REQUIRED") {
+          setMessage(statusResponse.data.message)
           setLoading(false)
           return
         }
 
         if (attempts < 8) {
-          setMessage(isPaid ? "Preparing paid invoice..." : "Confirming payment...")
+          setMessage("Payment received by gateway. Confirming payment…")
           window.setTimeout(loadPaidInvoice, 1500)
         } else {
-          setMessage(isPaid ? "Paid invoice is still being prepared." : "Payment is still syncing.")
+          setMessage("Confirmation is taking longer than usual. Your payment remains pending reconciliation; please do not pay again yet.")
           setLoading(false)
         }
       } catch {
@@ -67,7 +80,7 @@ export default function Success() {
         if (attempts < 4) {
           window.setTimeout(loadPaidInvoice, 1500)
         } else {
-          setMessage("Payment was verified, but invoice refresh is taking longer than expected.")
+          setMessage("We could not refresh the committed status. Please check again shortly; do not pay again yet.")
           setLoading(false)
         }
       }
@@ -78,21 +91,23 @@ export default function Success() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, orderId])
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] px-4 py-6 text-[#17211f]">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl items-center justify-center">
         <section className="w-full max-w-md rounded-lg border border-[#cfe4d7] bg-white p-6 shadow-sm">
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-[#e9f8ef] text-xl font-bold text-[#207348]">
-            ✓
+          <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold ${paid ? "bg-[#e9f8ef] text-[#207348]" : "bg-[#fff5d9] text-[#8a6400]"}`}>
+            {paid ? "✓" : "…"}
           </div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#207348]">Payment successful</p>
-          <h1 className="mt-2 text-3xl font-bold">Rent payment received</h1>
+          <p className={`text-sm font-semibold uppercase tracking-wide ${paid ? "text-[#207348]" : "text-[#8a6400]"}`}>
+            {paid ? "Payment confirmed" : "Payment processing"}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold">{paid ? "Rent payment received" : "Confirming your payment"}</h1>
           <p className="mt-3 text-[#5d6d68]">
             {paid
               ? "Your paid invoice is updated below."
-              : "Your payment was verified securely. The paid invoice is being prepared."}
+              : "We are waiting for authenticated confirmation from the payment provider."}
           </p>
 
           <div className="mt-5 rounded-lg border border-[#e1e8e6] bg-[#f8faf9] p-4">
@@ -104,7 +119,7 @@ export default function Success() {
                 </p>
               </div>
               <span className="rounded-full bg-[#e9f8ef] px-3 py-1 text-xs font-semibold text-[#207348]">
-                {paid ? "Paid" : "Syncing"}
+                {paid ? "Paid" : paymentStatus?.status === "RECONCILIATION_REQUIRED" ? "Needs review" : "Processing"}
               </span>
             </div>
 

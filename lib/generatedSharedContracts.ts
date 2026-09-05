@@ -35,18 +35,13 @@ export type TenantPortalInvoice = {
 }
 
 export type TenantPortalPaymentOrder = {
-  gateway?: "CASHFREE" | "RAZORPAY" | string
-  keyId?: string
+  keyId: string
   orderId: string
-  paymentSessionId?: string | null
   amount: number
   currency: string
   invoiceId: string
   tenantName: string
   description: string
-  customerPhone?: string | null
-  customerEmail?: string | null
-  environment?: "PRODUCTION" | "SANDBOX" | string
 }
 
 export type TenantPortalManualProofResult = {
@@ -82,6 +77,12 @@ export type TenantPortalReminderSettings = {
   threeDaysBefore?: boolean
   onDueDate?: boolean
   fiveDaysAfter?: boolean
+  whatsappEnabled?: boolean
+  whatsappOnInvoiceCreated?: boolean
+  whatsappThreeDaysBefore?: boolean
+  whatsappOnDueDate?: boolean
+  whatsappFiveDaysAfter?: boolean
+  whatsappPaymentReceipt?: boolean
   serverReady?: boolean
   statusMessage?: string | null
   updatedAt?: string | null
@@ -106,6 +107,8 @@ export type TenantPortalPaymentHistoryInvoice = {
   rentId?: string | null
   tenantName?: string | null
   tenantEmail?: string | null
+  tenantPhone?: string | null
+  sendChannel?: string | null
   reminderType?: string | null
   sentAt?: string | null
   openedAt?: string | null
@@ -135,6 +138,12 @@ export type TenantPortalPaymentHistoryInvoice = {
   manualPaymentReviewNote?: string | null
   manualPaymentProofUrl?: string | null
   timelineEvents?: TenantPortalPaymentHistoryTimelineEvent[]
+  whatsappStatus?: string | null
+  whatsappSentAt?: string | null
+  whatsappDeliveredAt?: string | null
+  whatsappReadAt?: string | null
+  whatsappErrorCode?: string | null
+  whatsappErrorMessage?: string | null
   createdAt?: string | null
   updatedAt?: string | null
 }

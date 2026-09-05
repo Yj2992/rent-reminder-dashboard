@@ -9,7 +9,8 @@ export default function TenantPortalRedirect() {
     const { token, ref, order_id } = router.query
 
     if (token && typeof token === "string") {
-      router.replace(`/pay/${encodeURIComponent(token)}`)
+      const orderQuery = order_id && typeof order_id === "string" ? `?order_id=${encodeURIComponent(order_id)}` : ""
+      router.replace(`/pay/${encodeURIComponent(token)}${orderQuery}`)
     } else if (order_id && typeof order_id === "string") {
       router.replace(`/pay/${encodeURIComponent(order_id)}?order_id=${encodeURIComponent(order_id)}`)
     } else if (ref && typeof ref === "string") {
