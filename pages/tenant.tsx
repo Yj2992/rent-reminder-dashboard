@@ -862,22 +862,32 @@ export default function TenantHome() {
                             const acc = accounts.find(a => a.id === bill.utility_account_id)
                             const opName = acc?.operator_name || "Electricity Provider"
                             const consumer = acc?.consumer_number || bill.consumer_name || ""
+                            const utilType = acc?.utility_type || (opName.toLowerCase().includes("gas") || opName.toLowerCase().includes("igl") || opName.toLowerCase().includes("mgl") ? "GAS" : opName.toLowerCase().includes("water") || opName.toLowerCase().includes("jal") || opName.toLowerCase().includes("bwssb") ? "WATER" : "ELECTRICITY")
+                            const icon = utilType === "WATER" ? "💧" : utilType === "GAS" ? "🔥" : "⚡"
+                            const badgeColor = utilType === "WATER" ? "bg-[#e0f2fe] text-[#0369a1]" : utilType === "GAS" ? "bg-[#ffedd5] text-[#c2410c]" : "bg-[#dde7ff] text-[#1f6ad8]"
 
                             return (
-                              <div key={bill.id} className="rounded-[20px] border border-[#dbe4f0] bg-white p-5 shadow-sm transition hover:shadow-md">
+                              <div key={bill.id} className="rounded-3xl border border-[#dbe4f0] bg-white p-5 shadow-xs transition hover:shadow-md hover:border-[#1f6ad8]">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#dde7ff] text-xs font-bold text-[#1f6ad8]">⚡</span>
-                                      <h4 className="font-bold text-[#182133]">{opName}</h4>
+                                      <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${badgeColor} text-sm font-bold shadow-2xs`}>
+                                        {icon}
+                                      </span>
+                                      <div>
+                                        <h4 className="font-bold text-[#182133]">{opName}</h4>
+                                        <span className="text-[10px] font-semibold text-[#60708d] uppercase tracking-wider">
+                                          {utilType === "WATER" ? "Water Board / Tanker" : utilType === "GAS" ? "Piped Gas (PNG)" : "Electricity DISCOM"}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <p className="mt-1 text-xs text-[#60708d]">
+                                    <p className="mt-2 text-xs text-[#60708d]">
                                       Consumer No: <span className="font-mono font-semibold text-[#182133]">••••••{consumer.slice(-6)}</span> {bill.due_date ? `· Due ${bill.due_date}` : ""}
                                     </p>
                                   </div>
                                   <div className="text-right">
-                                    <span className="text-lg font-extrabold text-[#182133]">{money(bill.bill_amount_paise)}</span>
-                                    <span className="ml-2 rounded-full bg-[#ffe4e1] px-2 py-0.5 text-[11px] font-bold text-[#9b2a1f]">DUE</span>
+                                    <span className="text-xl font-extrabold text-[#182133]">{money(bill.bill_amount_paise)}</span>
+                                    <span className="ml-2 rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[10px] font-bold text-[#b91c1c]">DUE</span>
                                   </div>
                                 </div>
 
@@ -902,9 +912,9 @@ export default function TenantHome() {
                                         alert(err.response?.data?.message || "Failed to initialize payment checkout")
                                       }
                                     }}
-                                    className="rounded-[12px] bg-[#1f6ad8] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#144eb0]"
+                                    className="rounded-xl bg-[#1f6ad8] px-5 py-2.5 text-xs font-bold text-white shadow-xs transition duration-200 hover:bg-[#1756b5] active:scale-95"
                                   >
-                                    Review & Pay Now →
+                                    Review &amp; Pay Now →
                                   </button>
                                 </div>
                               </div>

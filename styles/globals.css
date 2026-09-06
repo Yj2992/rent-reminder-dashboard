@@ -2,16 +2,19 @@
 
 @layer components {
   .input { 
-    @apply w-full rounded-xl border border-[#ccd5e4] bg-white px-4 py-2.5 text-sm text-[#182133] outline-none transition placeholder:text-[#60708d] focus:border-[#2151c5] focus:ring-2 focus:ring-[#dde7ff];
+    @apply w-full rounded-xl border border-[#ccd5e4] bg-white px-4 py-2.5 text-sm text-[#182133] outline-none transition placeholder:text-[#60708d] focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff];
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl bg-[#2151c5] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a43a7] focus:outline-none focus:ring-2 focus:ring-[#dde7ff] focus:ring-offset-2 disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-xl bg-[#1f6ad8] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#1756b5] hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#d9e8ff] focus:ring-offset-2 disabled:opacity-50;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-[14px] border border-[#ccd5e4] bg-white px-5 py-2.5 text-sm font-semibold text-[#182133] shadow-sm transition hover:bg-[#f4f7fb] hover:border-[#b4c2d6] focus:outline-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-[14px] border border-[#ccd5e4] bg-white px-5 py-2.5 text-sm font-semibold text-[#182133] shadow-sm transition duration-200 hover:bg-[#f4f7fb] hover:border-[#b4c2d6] active:scale-[0.98] focus:outline-none disabled:opacity-50;
   }
   .btn-mint {
-    @apply inline-flex items-center justify-center rounded-[14px] bg-[#0f8a73] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0c725f] disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-[14px] bg-[#0f8a73] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#0c725f] active:scale-[0.98] disabled:opacity-50;
+  }
+  .card-hover {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99];
   }
 }
 
@@ -27,9 +30,9 @@
   --rm-navy-soft: #202d46;
   --rm-text: #182133;
   --rm-muted: #60708d;
-  --rm-accent: #2151c5;
-  --rm-accent-strong: #1a43a7;
-  --rm-accent-soft: #dde7ff;
+  --rm-accent: #1f6ad8;
+  --rm-accent-strong: #1756b5;
+  --rm-accent-soft: #eff6ff;
   --rm-mint: #0f8a73;
   --rm-mint-soft: #d7f4ec;
   --rm-amber: #b57717;
@@ -86,7 +89,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(33, 81, 197, 0.25);
+  outline: 3px solid rgba(31, 106, 216, 0.35);
   outline-offset: 2px;
 }
 
@@ -98,15 +101,54 @@ textarea {
 ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: #ccd5e4;
+  background: #cdd8eb;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9fb8ff;
+  background: #93c5fd;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(31, 106, 216, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(37, 99, 235, 0.5);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::selection {
-  background: rgba(33, 81, 197, 0.18);
+  background: rgba(31, 106, 216, 0.2);
   color: #182133;
 }
