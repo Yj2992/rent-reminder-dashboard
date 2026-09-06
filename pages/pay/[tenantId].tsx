@@ -321,7 +321,11 @@ export default function PayPage() {
 
   const isUtilityBill = Boolean(
     invoice?.invoiceNumber?.startsWith("EBILL-") ||
+    invoice?.invoiceNumber?.startsWith("UTIL-") ||
     invoice?.companyName?.toLowerCase().includes("electricity") ||
+    invoice?.companyName?.toLowerCase().includes("water") ||
+    invoice?.companyName?.toLowerCase().includes("gas") ||
+    invoice?.companyName?.toLowerCase().includes("utility") ||
     token.startsWith("util_")
   )
 
@@ -331,11 +335,11 @@ export default function PayPage() {
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1f6ad8] font-bold text-white shadow-xs">
-              {isUtilityBill ? "⚡" : "R"}
+              {isUtilityBill ? "🎛️" : "R"}
             </span>
             <div>
               <p className="text-base font-bold text-[#182133] leading-tight">
-                {isUtilityBill ? (invoice.companyName || "Electricity Board") : (invoice.companyName || "Rentomatic")}
+                {isUtilityBill ? (invoice.companyName || "Utility Board") : (invoice.companyName || "Rentomatic")}
               </p>
               <p className="text-xs text-[#60708d]">
                 {isUtilityBill ? "Bharat Connect • BBPS Verified Utility Desk" : "Secure Rent & Property Desk"}
@@ -358,7 +362,7 @@ export default function PayPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg bg-[#eff6ff] text-[#1f6ad8] border border-[#bfdbfe]">
-                {isUtilityBill ? "Electricity Bill" : (invoice.invoiceNumber || "Rent Statement")}
+                {isUtilityBill ? "Utility Bill" : (invoice.invoiceNumber || "Rent Statement")}
               </span>
               <h1 className="mt-2.5 text-3xl font-extrabold tracking-tight text-[#182133]">
                 {invoice.tenantName || "Valued Customer"}
@@ -430,7 +434,7 @@ export default function PayPage() {
 
         <aside className="rounded-3xl border border-[#d8e1ee] bg-white p-6 sm:p-7 shadow-xs">
           <p className="text-xs font-bold uppercase tracking-wider text-[#1f6ad8]">
-            {isUtilityBill ? "Total Electricity Bill" : "Amount Payable"}
+            {isUtilityBill ? "Total Utility Bill" : "Amount Payable"}
           </p>
           <p className="mt-2 text-4xl font-extrabold text-[#182133] tracking-tight">{amountText}</p>
           <p className="mt-2 text-xs text-[#60708d] leading-relaxed">

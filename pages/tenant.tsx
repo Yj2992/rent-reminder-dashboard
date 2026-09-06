@@ -484,7 +484,7 @@ export default function TenantHome() {
       <header className="sticky top-0 z-30 border-b border-[#ccd5e4] bg-[#f4f7fb]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2151c5] font-bold text-white shadow-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1f6ad8] font-bold text-white shadow-sm">
               R
             </span>
             <div>
@@ -494,7 +494,7 @@ export default function TenantHome() {
           </div>
           <button
             onClick={() => setTab("profile")}
-            className="rounded-xl border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:border-[#b4c2d6] hover:bg-[#f0f6ff]"
+            className="rounded-xl border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:border-[#1f6ad8] hover:bg-[#f0f6ff]"
           >
             Account
           </button>
@@ -506,7 +506,7 @@ export default function TenantHome() {
           <label className="block p-2 text-xs font-bold uppercase tracking-wider text-[#60708d]">Your tenancy</label>
           {items.length > 1 ? (
             <select
-              className="mb-3 w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-2.5 text-sm font-semibold text-[#182133] outline-none focus:border-[#2151c5]"
+              className="mb-3 w-full rounded-[14px] border border-[#ccd5e4] bg-[#fcfdff] p-2.5 text-sm font-semibold text-[#182133] outline-none focus:border-[#1f6ad8]"
               value={selected}
               onChange={(e) => {
                 selectTenancy(Number(e.target.value))
@@ -519,8 +519,8 @@ export default function TenantHome() {
               ))}
             </select>
           ) : (
-            <div className="mb-3 rounded-[14px] border border-[#dde7ff] bg-[#f4f8ff] p-3">
-              <b className="text-sm font-bold text-[#2151c5]">{d.tenantId || "Tenant ID pending"}</b>
+            <div className="mb-3 rounded-[14px] border border-[#bfdbfe] bg-[#eff6ff] p-3">
+              <b className="text-sm font-bold text-[#1f6ad8]">{d.tenantId || "Tenant ID pending"}</b>
               <p className="text-xs text-[#60708d]">{d.tenantName}</p>
             </div>
           )}
@@ -529,18 +529,18 @@ export default function TenantHome() {
               key={x}
               onClick={() => setTab(x)}
               className={`mb-1 w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition ${
-                tab === x ? "bg-[#2151c5] text-white shadow-sm" : "text-[#33415c] hover:bg-[#f0f6ff]"
+                tab === x ? "bg-[#1f6ad8] text-white shadow-sm" : "text-[#33415c] hover:bg-[#f0f6ff]"
               }`}
             >
-              {x === "utilities" ? "⚡ Electricity Bills" : x === "bills" ? "Rent Invoices" : title(x)}
+              {x === "utilities" ? "🎛️ Utilities" : x === "bills" ? "Rent Invoices" : title(x)}
             </button>
           ))}
         </aside>
 
         <section>
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#d3def1] bg-[#f0f6ff] px-5 py-5 sm:px-6">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] px-5 py-5 sm:px-6">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#2151c5]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1f6ad8]">
                 {tab === "home" ? "Your home" : "Tenant workspace"}
               </p>
               <h1 className="mt-1 text-3xl font-semibold tracking-[-0.025em] text-[#182133]">
@@ -707,16 +707,16 @@ export default function TenantHome() {
                 </div>
               </div>
 
-              {/* 3. ELECTRICITY & UTILITY BILLS SECTION */}
+              {/* 3. MULTI-UTILITY BILLS SECTION */}
               <div className="rounded-2xl border border-[#ccd5e4] bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between border-b border-[#edf2f8] pb-3.5">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#fef8ea] text-xs font-bold text-[#b57717]">⚡</span>
-                    <h3 className="text-base font-bold text-[#182133]">Electricity &amp; Utility Bills</h3>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#eff6ff] text-xs font-bold text-[#1f6ad8] border border-[#bfdbfe]">🎛️</span>
+                    <h3 className="text-base font-bold text-[#182133]">Utility Bills (Electric, Water &amp; Gas)</h3>
                   </div>
                   <button
                     onClick={() => setTab("utilities")}
-                    className="text-xs font-bold text-[#2151c5] hover:underline"
+                    className="text-xs font-bold text-[#1f6ad8] hover:underline"
                   >
                     View utilities ({dedupedUtilityBills.length}) →
                   </button>
@@ -726,7 +726,7 @@ export default function TenantHome() {
                   {dueUtilityBills.length > 0 ? (
                     dueUtilityBills.map((bill) => {
                       const acc = (d.utilityAccounts || []).find((a) => a.id === bill.utility_account_id)
-                      const opName = acc?.operator_name || bill.provider || "Electricity Board"
+                      const opName = acc?.operator_name || bill.provider || "Utility Board"
                       const consumer = acc?.consumer_number || bill.consumer_name || ""
 
                       return (
@@ -737,7 +737,7 @@ export default function TenantHome() {
                           <div>
                             <div className="flex items-center gap-2">
                               <b className="text-sm font-bold text-[#182133]">{opName}</b>
-                              <span className="rounded-full bg-[#ffe4e1] px-2 py-0.5 text-[10px] font-bold text-[#9b2a1f]">
+                              <span className="rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[10px] font-bold text-[#b91c1c]">
                                 {bill.status}
                               </span>
                             </div>
@@ -760,17 +760,17 @@ export default function TenantHome() {
                                   setTab("utilities")
                                 }
                               }}
-                              className="rounded-lg bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#144eb0]"
+                              className="rounded-xl bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-95"
                             >
-                              ⚡ Pay Bill →
+                              🎛️ Pay Utility →
                             </button>
                           </div>
                         </div>
                       )
                     })
                   ) : (
-                    <div className="rounded-xl border border-[#b0e5d8] bg-[#f2faf7] p-4 text-xs font-semibold text-[#0f8a73]">
-                      ✓ All electricity and utility bills are settled.
+                    <div className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-xs font-semibold text-[#1f6ad8]">
+                      ✓ All utility bills (electric, water &amp; gas) are settled.
                     </div>
                   )}
                 </div>
@@ -825,7 +825,7 @@ export default function TenantHome() {
           )}
 
           {tab === "utilities" && (
-            <Card title="⚡ Electricity & Utility Bills">
+            <Card title="🎛️ Utility & Submeter Bills (Electric, Water, Gas)">
               {(() => {
                 const accounts = d.utilityAccounts || []
                 const rawBills = d.utilityBills || []
@@ -860,7 +860,7 @@ export default function TenantHome() {
                         <div className="mt-3 space-y-3">
                           {dueNowBills.map(bill => {
                             const acc = accounts.find(a => a.id === bill.utility_account_id)
-                            const opName = acc?.operator_name || "Electricity Provider"
+                            const opName = acc?.operator_name || "Utility Provider"
                             const consumer = acc?.consumer_number || bill.consumer_name || ""
                             const utilType = acc?.utility_type || (opName.toLowerCase().includes("gas") || opName.toLowerCase().includes("igl") || opName.toLowerCase().includes("mgl") ? "GAS" : opName.toLowerCase().includes("water") || opName.toLowerCase().includes("jal") || opName.toLowerCase().includes("bwssb") ? "WATER" : "ELECTRICITY")
                             const icon = utilType === "WATER" ? "💧" : utilType === "GAS" ? "🔥" : "⚡"
@@ -936,16 +936,16 @@ export default function TenantHome() {
                           {processingBills.map(bill => {
                             const acc = accounts.find(a => a.id === bill.utility_account_id)
                             return (
-                              <div key={bill.id} className="rounded-[16px] border border-[#f0dfa0] bg-[#fffdf2] p-4 text-xs text-[#8a6000]">
+                              <div key={bill.id} className="rounded-[16px] border border-[#bfdbfe] bg-[#eff6ff] p-4 text-xs text-[#1e40af]">
                                 <div className="flex items-center justify-between font-bold">
                                   <div className="flex items-center gap-2">
                                     <span>⏳</span>
-                                    <span>Payment received — Settlement in progress for {acc?.operator_name || "DISCOM"}</span>
+                                    <span>Payment received — Settlement in progress for {acc?.operator_name || "Utility Board"}</span>
                                   </div>
                                   <span>{money(bill.bill_amount_paise)}</span>
                                 </div>
                                 <p className="mt-1 text-[#60708d]">
-                                  Your payment of {money(bill.bill_amount_paise)} is being cleared directly with your electricity board via Bharat Connect. No further action is required.
+                                  Your payment of {money(bill.bill_amount_paise)} is being cleared directly with your utility board via Bharat Connect. No further action is required.
                                 </p>
                               </div>
                             )
@@ -979,7 +979,7 @@ export default function TenantHome() {
 
                                 return (
                                   <tr key={bill.id}>
-                                    <td className="p-3.5 font-bold text-[#182133]">{acc?.operator_name || "Electricity Board"}</td>
+                                    <td className="p-3.5 font-bold text-[#182133]">{acc?.operator_name || "Utility Board"}</td>
                                     <td className="p-3.5 text-[#60708d]">{bill.billing_period || bill.due_date || "—"}</td>
                                     <td className="p-3.5 font-bold text-[#182133]">{money(bill.bill_amount_paise)}</td>
                                     <td className="p-3.5">
