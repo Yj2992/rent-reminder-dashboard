@@ -227,7 +227,7 @@ export default function PayPage() {
             invoice_id: invoice.invoiceId,
             invoice_number: invoice.invoiceNumber || "",
           },
-          theme: { color: "#1f6f5b" },
+          theme: { color: "#1f6ad8" },
           method: { upi: true, card: true, wallet: true, netbanking: true },
           retry: { enabled: true, max_count: 2 },
           modal: {
@@ -278,18 +278,18 @@ export default function PayPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f5f7f8] px-4 py-6 text-[#17211f]">
+      <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-[#182133]">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl items-center justify-center">
-          <div className="w-full max-w-md rounded-lg border border-[#d8e2df] bg-white p-6 shadow-sm">
-            <div className="mb-5 h-3 w-28 rounded-full bg-[#dce7e3]" />
-            <div className="mb-3 h-8 w-3/4 rounded bg-[#eef3f1]" />
-            <div className="mb-6 h-4 w-1/2 rounded bg-[#eef3f1]" />
-            <div className="space-y-3 rounded-lg border border-[#e1e8e6] bg-[#f8faf9] p-4">
-              <div className="h-4 w-full rounded bg-[#e7eeeb]" />
-              <div className="h-4 w-5/6 rounded bg-[#e7eeeb]" />
-              <div className="h-4 w-2/3 rounded bg-[#e7eeeb]" />
+          <div className="w-full max-w-md rounded-3xl border border-[#d8e1ee] bg-white p-8 shadow-sm">
+            <div className="mb-5 h-3 w-28 rounded-full bg-[#e8eef6]" />
+            <div className="mb-3 h-8 w-3/4 rounded-xl bg-[#eff6ff]" />
+            <div className="mb-6 h-4 w-1/2 rounded bg-[#f4f7fb]" />
+            <div className="space-y-3 rounded-2xl border border-[#e8eef6] bg-[#f8fafd] p-4">
+              <div className="h-4 w-full rounded bg-[#e2eaf5]" />
+              <div className="h-4 w-5/6 rounded bg-[#e2eaf5]" />
+              <div className="h-4 w-2/3 rounded bg-[#e2eaf5]" />
             </div>
-            <p className="mt-5 text-sm text-[#5d6d68]">Loading secure invoice...</p>
+            <p className="mt-5 text-sm text-[#60708d] text-center font-medium">Loading secure invoice…</p>
           </div>
         </div>
       </main>
@@ -298,19 +298,19 @@ export default function PayPage() {
 
   if (error && !invoice) {
     return (
-      <main className="min-h-screen bg-[#f5f7f8] px-4 py-6 text-[#17211f]">
+      <main className="min-h-screen bg-[#f4f7fb] px-4 py-6 text-[#182133]">
         <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-3xl items-center justify-center">
-          <section className="w-full max-w-md rounded-lg border border-[#f0c9c2] bg-white p-6 text-center shadow-sm">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#a33d2f]">Payment link unavailable</p>
-            <h1 className="text-2xl font-bold">This link cannot be opened</h1>
-            <p className="mt-3 text-[#5d6d68]">{error}</p>
+          <section className="w-full max-w-md rounded-3xl border border-[#f8c8c2] bg-white p-8 text-center shadow-lg">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#c53b27]">Payment link unavailable</p>
+            <h1 className="text-2xl font-extrabold text-[#182133]">This link cannot be opened</h1>
+            <p className="mt-3 text-sm text-[#60708d]">{error}</p>
             <button
               onClick={refreshInvoice}
-              className="mt-6 w-full rounded-lg bg-[#1f6f5b] px-4 py-3 font-semibold text-white transition hover:bg-[#185846]"
+              className="mt-6 w-full rounded-2xl bg-[#1f6ad8] px-4 py-3.5 font-bold text-white transition hover:bg-[#1756b5] shadow-xs active:scale-[0.99]"
             >
               Try again
             </button>
-            <p className="mt-4 text-sm text-[#6f7e79]">Ask the property manager to resend the latest invoice link.</p>
+            <p className="mt-4 text-xs text-[#7384a2]">Ask the property manager to resend the latest payment link.</p>
           </section>
         </div>
       </main>
@@ -327,10 +327,10 @@ export default function PayPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] text-[#182133]">
-      <header className="border-b border-[#ccd5e4] bg-white sticky top-0 z-30 shadow-xs">
+      <header className="border-b border-[#d8e1ee] bg-white sticky top-0 z-30 shadow-2xs">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#1f6ad8] font-bold text-white shadow-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1f6ad8] font-bold text-white shadow-xs">
               {isUtilityBill ? "⚡" : "R"}
             </span>
             <div>
@@ -344,25 +344,23 @@ export default function PayPage() {
           </div>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
             isUtilityBill 
-              ? "border-[#c6d7f8] bg-[#eef4ff] text-[#1f6ad8]" 
-              : "border-[#bde4cf] bg-[#eefaf3] text-[#1a6641]"
+              ? "border-[#bfdbfe] bg-[#eff6ff] text-[#1e40af]" 
+              : "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]"
           }`}>
-            <span className={`h-2 w-2 rounded-full ${isUtilityBill ? "bg-[#1f6ad8]" : "bg-[#1a6641]"}`} />
+            <span className={`h-2 w-2 rounded-full ${isUtilityBill ? "bg-[#1f6ad8]" : "bg-[#15803d]"}`} />
             {isUtilityBill ? "BBPS Instant Settlement" : "1-Click UPI Checkout"}
           </span>
         </div>
       </header>
 
       <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_380px]">
-        <section className="rounded-[24px] border border-[#dbe4f0] bg-white p-6 sm:p-7 shadow-xs">
+        <section className="rounded-3xl border border-[#d8e1ee] bg-white p-6 sm:p-7 shadow-xs">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <span className={`inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md ${
-                isUtilityBill ? "bg-[#e8f0fe] text-[#1f6ad8]" : "bg-[#eef4ff] text-[#1f6ad8]"
-              }`}>
+              <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg bg-[#eff6ff] text-[#1f6ad8] border border-[#bfdbfe]">
                 {isUtilityBill ? "Electricity Bill" : (invoice.invoiceNumber || "Rent Statement")}
               </span>
-              <h1 className="mt-2.5 text-3xl font-bold tracking-tight text-[#182133]">
+              <h1 className="mt-2.5 text-3xl font-extrabold tracking-tight text-[#182133]">
                 {invoice.tenantName || "Valued Customer"}
               </h1>
               <p className="mt-1.5 text-sm font-medium text-[#60708d]">
@@ -376,12 +374,12 @@ export default function PayPage() {
             <div
               className={`w-fit rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider ${
                 paid
-                  ? "bg-[#d4f4e2] text-[#1a6641] border border-[#a8dfc0]"
+                  ? "bg-[#dcfce7] text-[#15803d] border border-[#86efac]"
                   : statusLabel === "Under review"
-                  ? "bg-[#eef7ff] text-[#145b8d] border border-[#cbe4fb]"
+                  ? "bg-[#eff6ff] text-[#1e40af] border border-[#bfdbfe]"
                   : statusLabel === "Failed"
-                  ? "bg-[#ffe4e1] text-[#9b2a1f] border border-[#f5c6cb]"
-                  : "bg-[#fff4d6] text-[#8a6000] border border-[#fae2a0]"
+                  ? "bg-[#fee2e2] text-[#dc2626] border border-[#fca5a5]"
+                  : "bg-[#fffbeb] text-[#b45309] border border-[#fde68a]"
               }`}
             >
               {paid ? "✓ SETTLED & PAID" : statusLabel}
@@ -394,8 +392,8 @@ export default function PayPage() {
             <InfoTile label={isUtilityBill ? "Consumer Number" : "Invoice Ref"} value={isUtilityBill ? invoice.invoiceNumber?.replace("EBILL-", "") || invoice.invoiceId : invoice.invoiceId} compact />
           </div>
 
-          <div className="mt-6 rounded-[20px] border border-[#e2ebf6] bg-[#f8fbff] p-5">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[#182133]">
+          <div className="mt-6 rounded-2xl border border-[#d8e8fe] bg-gradient-to-br from-[#f8fafd] to-[#f0f7ff] p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#1e40af]">
               {isUtilityBill ? "⚡ BBPS Settlement Assurance" : "Payment Verification Steps"}
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -424,14 +422,14 @@ export default function PayPage() {
           </div>
 
           {error && (
-            <div className="mt-5 rounded-[16px] border border-[#f5c6cb] bg-[#fff8f8] p-4 text-sm text-[#9b2a1f]">
+            <div className="mt-5 rounded-2xl border border-[#f8c8c2] bg-[#feece9] p-4 text-sm text-[#c53b27]">
               {error}
             </div>
           )}
         </section>
 
-        <aside className="rounded-[24px] border border-[#dbe4f0] bg-white p-6 sm:p-7 shadow-xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#60708d]">
+        <aside className="rounded-3xl border border-[#d8e1ee] bg-white p-6 sm:p-7 shadow-xs">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#1f6ad8]">
             {isUtilityBill ? "Total Electricity Bill" : "Amount Payable"}
           </p>
           <p className="mt-2 text-4xl font-extrabold text-[#182133] tracking-tight">{amountText}</p>
@@ -452,27 +450,27 @@ export default function PayPage() {
                 value={partialRupees} 
                 onChange={e => setPartialRupees(e.target.value)} 
                 placeholder={`Full balance ${amountText}`} 
-                className="mt-2 w-full rounded-[14px] border border-[#d7e1ef] px-4 py-2.5 text-sm font-medium text-[#182133] outline-none focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
+                className="mt-2 w-full rounded-2xl border border-[#d7e1ef] px-4 py-2.5 text-sm font-medium text-[#182133] outline-none focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
               />
               <span className="mt-1 block text-[11px] font-normal text-[#8091a5]">Leave blank to pay the full balance.</span>
             </label>
           )}
 
           {manualStatusLabel && !paid && (
-            <div className="mt-5 rounded-[16px] border border-[#dbe4f0] bg-[#f8fbff] p-4">
+            <div className="mt-5 rounded-2xl border border-[#dbe4f0] bg-[#f8fbff] p-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#60708d]">Manual Verification</p>
               <p className="mt-1 font-semibold text-[#182133]">{manualStatusLabel}</p>
               {invoice?.manualPaymentMethod && (
                 <p className="mt-1 text-xs text-[#60708d]">Method: {paymentMethodLabel(invoice.manualPaymentMethod)}</p>
               )}
               {invoice?.manualPaymentReviewNote && (
-                <p className="mt-2 text-xs text-[#60708d] bg-white p-2.5 rounded-[10px] border border-[#e2ebf6]">{invoice.manualPaymentReviewNote}</p>
+                <p className="mt-2 text-xs text-[#60708d] bg-white p-2.5 rounded-xl border border-[#e2ebf6]">{invoice.manualPaymentReviewNote}</p>
               )}
               {manualReviewPending && (
                 <button
                   type="button"
                   onClick={refreshInvoice}
-                  className="mt-3 w-full rounded-[12px] border border-[#c6d7f8] bg-white px-3 py-2 text-xs font-bold text-[#1f6ad8] transition hover:bg-[#eef4ff]"
+                  className="mt-3 w-full rounded-xl border border-[#bfdbfe] bg-white px-3 py-2 text-xs font-bold text-[#1f6ad8] transition hover:bg-[#eff6ff]"
                 >
                   Refresh status
                 </button>
@@ -486,7 +484,7 @@ export default function PayPage() {
                 href={invoice.publicUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="block w-full rounded-[16px] border border-[#dbe4f0] bg-[#f8fbff] px-4 py-3 text-center text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eef4ff] hover:border-[#c6d7f8]"
+                className="block w-full rounded-2xl border border-[#d8e1ee] bg-[#f8fbff] px-4 py-3 text-center text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eff6ff] hover:border-[#bfdbfe]"
               >
                 {paid ? "📄 View Verified Receipt PDF" : "📄 View Statement PDF"}
               </a>
@@ -495,10 +493,10 @@ export default function PayPage() {
             <button
               onClick={startPayment}
               disabled={Boolean(paid) || paying}
-              className={`w-full rounded-[16px] px-4 py-3.5 text-sm font-bold text-white shadow-sm transition ${
+              className={`w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white shadow-xs transition ${
                 paid
-                  ? "cursor-not-allowed bg-[#d4f4e2] text-[#1a6641] shadow-none"
-                  : "bg-gradient-to-r from-[#1f6ad8] to-[#144eb0] hover:from-[#1a5bc0] hover:to-[#103d8d] hover:shadow-md active:scale-[0.99]"
+                  ? "cursor-not-allowed bg-[#dcfce7] text-[#15803d] shadow-none"
+                  : "bg-gradient-to-r from-[#1f6ad8] to-[#1e40af] hover:from-[#1756b5] hover:to-[#1e3a8a] hover:shadow-md active:scale-[0.99]"
               }`}
             >
               {paid ? "✓ Payment Settled" : paying ? "Opening Cashfree UPI..." : "💳 Pay with UPI / GPay / Cards"}
@@ -512,10 +510,10 @@ export default function PayPage() {
           {!paid && !manualReviewPending && (
             <>
               <div className="mt-5 grid grid-cols-4 gap-1.5 text-center text-[10px] font-bold text-[#60708d]">
-                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">GPay</span>
-                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">PhonePe</span>
-                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">Paytm</span>
-                <span className="rounded-[10px] bg-[#f0f4f9] py-1.5">Cards</span>
+                <span className="rounded-xl bg-[#f0f4f9] py-1.5">GPay</span>
+                <span className="rounded-xl bg-[#f0f4f9] py-1.5">PhonePe</span>
+                <span className="rounded-xl bg-[#f0f4f9] py-1.5">Paytm</span>
+                <span className="rounded-xl bg-[#f0f4f9] py-1.5">Cards</span>
               </div>
 
               {invoice.invoiceNumber?.startsWith("EBILL") ||
@@ -523,27 +521,27 @@ export default function PayPage() {
               invoice.companyName?.toLowerCase().includes("discom") ||
               invoice.companyName?.toLowerCase().includes("electricity") ||
               invoice.companyName?.toLowerCase().includes("gas") ? (
-                <div className="mt-6 rounded-2xl border border-[#d8e5fc] bg-[#f5f9ff] p-4 text-center">
+                <div className="mt-6 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-center">
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1f6ad8]">
                     ⚡ Bharat Connect (BBPS) Direct Clearing
                   </span>
                   <p className="mt-1.5 text-xs leading-relaxed text-[#51637d]">
-                    To guarantee instant clearing with your DISCOM/Board and provide official BBPS receipts, utility bills must be paid online via UPI, Cards, or Netbanking above.
+                    To guarantee instant clearing with your DISCOM/Board and provide official BBPS receipts, utility bills are settled directly online via UPI, Cards, or Netbanking.
                   </p>
                 </div>
               ) : (
-                <div className="mt-6 rounded-lg border border-[#dce5e2] bg-[#f8faf9] p-4">
-                  <p className="text-sm font-semibold text-[#17211f]">Pay by UPI or bank transfer</p>
-                  <p className="mt-2 text-sm text-[#5d6d68]">
-                    After payment, upload a screenshot so your landlord can review and approve it.
+                <div className="mt-6 rounded-2xl border border-[#d8e1ee] bg-[#f8fafd] p-4">
+                  <p className="text-sm font-bold text-[#182133]">Pay by direct bank transfer / UPI ID</p>
+                  <p className="mt-1 text-xs text-[#60708d]">
+                    After payment, upload your transfer screenshot so your landlord can review and verify.
                   </p>
 
-                  <div className="mt-4 space-y-2 rounded-lg border border-[#e1e8e6] bg-white p-4 text-sm text-[#17211f]">
-                    {invoice.bankName && <p><span className="font-semibold">Bank:</span> {invoice.bankName}</p>}
-                    {invoice.accountNumber && <p><span className="font-semibold">Account:</span> {invoice.accountNumber}</p>}
-                    {invoice.branchName && <p><span className="font-semibold">Branch:</span> {invoice.branchName}</p>}
-                    {invoice.ifsc && <p><span className="font-semibold">IFSC:</span> {invoice.ifsc}</p>}
-                    {invoice.upi && <p><span className="font-semibold">UPI:</span> {invoice.upi}</p>}
+                  <div className="mt-4 space-y-2 rounded-xl border border-[#e2eaf5] bg-white p-3.5 text-xs text-[#182133]">
+                    {invoice.bankName && <p><span className="font-semibold text-[#60708d]">Bank:</span> {invoice.bankName}</p>}
+                    {invoice.accountNumber && <p><span className="font-semibold text-[#60708d]">Account:</span> {invoice.accountNumber}</p>}
+                    {invoice.branchName && <p><span className="font-semibold text-[#60708d]">Branch:</span> {invoice.branchName}</p>}
+                    {invoice.ifsc && <p><span className="font-semibold text-[#60708d]">IFSC:</span> {invoice.ifsc}</p>}
+                    {invoice.upi && <p><span className="font-semibold text-[#60708d]">UPI ID:</span> {invoice.upi}</p>}
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -554,10 +552,10 @@ export default function PayPage() {
                           key={option}
                           type="button"
                           onClick={() => setManualMethod(option)}
-                          className={`rounded-lg border px-3 py-3 text-sm font-semibold transition ${
+                          className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
                             selected
-                              ? "border-[#1f6f5b] bg-[#eef7f3] text-[#1f6f5b]"
-                              : "border-[#d5dfdc] bg-white text-[#5d6d68]"
+                              ? "border-[#1f6ad8] bg-[#eff6ff] text-[#1f6ad8]"
+                              : "border-[#d8e1ee] bg-white text-[#60708d]"
                           }`}
                         >
                           {paymentMethodLabel(option)}
@@ -566,24 +564,24 @@ export default function PayPage() {
                     })}
                   </div>
 
-                  <label className="mt-4 block text-sm font-semibold text-[#17211f]">
+                  <label className="mt-4 block text-xs font-bold text-[#182133]">
                     Payment screenshot
                     <input
                       type="file"
                       accept="image/*"
                       onChange={(event) => setProofFile(event.target.files?.[0] || null)}
-                      className="mt-2 block w-full rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f]"
+                      className="mt-1.5 block w-full rounded-xl border border-[#d8e1ee] bg-white px-3 py-2 text-xs text-[#182133]"
                     />
                   </label>
 
-                  <label className="mt-4 block text-sm font-semibold text-[#17211f]">
-                    Note or reference
+                  <label className="mt-3 block text-xs font-bold text-[#182133]">
+                    Note or reference / UTR
                     <textarea
                       value={manualNote}
                       onChange={(event) => setManualNote(event.target.value)}
-                      rows={3}
-                      placeholder="UPI reference, bank transaction note, or anything helpful"
-                      className="mt-2 w-full resize-none rounded-lg border border-[#d5dfdc] bg-white px-3 py-3 text-sm text-[#17211f] outline-none transition placeholder:text-[#8a9894] focus:border-[#1f6f5b] focus:ring-2 focus:ring-[#d8ebe4]"
+                      rows={2}
+                      placeholder="UPI reference / UTR number"
+                      className="mt-1.5 w-full resize-none rounded-xl border border-[#d8e1ee] bg-white px-3 py-2 text-xs text-[#182133] outline-none transition placeholder:text-[#9aa9c0] focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
                     />
                   </label>
 
@@ -591,17 +589,17 @@ export default function PayPage() {
                     type="button"
                     onClick={submitManualProof}
                     disabled={uploadingProof || !proofFile}
-                    className={`mt-4 w-full rounded-lg px-4 py-3 font-semibold transition ${
+                    className={`mt-4 w-full rounded-xl px-4 py-2.5 text-xs font-bold transition ${
                       uploadingProof || !proofFile
-                        ? "cursor-not-allowed bg-[#d7dfdc] text-[#7d8a86]"
-                        : "bg-[#1f6f5b] text-white hover:bg-[#185846] hover:shadow-md"
+                        ? "cursor-not-allowed bg-[#e2eaf5] text-[#9aa9c0]"
+                        : "bg-[#1f6ad8] text-white hover:bg-[#1756b5] hover:shadow-xs"
                     }`}
                   >
                     {uploadingProof ? "Uploading proof..." : "Upload payment proof"}
                   </button>
 
                   {manualMessage && (
-                    <p className="mt-3 text-sm text-[#1f6f5b]">{manualMessage}</p>
+                    <p className="mt-3 text-xs text-[#15803d] font-bold">{manualMessage}</p>
                   )}
                 </div>
               )}
@@ -609,16 +607,16 @@ export default function PayPage() {
           )}
 
           {!paid && manualReviewPending && (
-            <div className="mt-6 rounded-lg border border-[#d8e6f5] bg-[#f4f9ff] p-4">
-              <p className="text-sm font-semibold text-[#145b8d]">Payment proof submitted</p>
-              <p className="mt-2 text-sm text-[#4c6579]">
-                Your {paymentMethodLabel(invoice.manualPaymentMethod || manualMethod)} proof has been uploaded successfully.
+            <div className="mt-6 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+              <p className="text-sm font-bold text-[#1e40af]">Payment proof submitted</p>
+              <p className="mt-1.5 text-xs text-[#475569]">
+                Your {paymentMethodLabel(invoice.manualPaymentMethod || manualMethod)} proof has been uploaded.
                 The landlord will review it before marking this invoice paid.
               </p>
               <button
                 type="button"
                 onClick={refreshInvoice}
-                className="mt-4 w-full rounded-lg bg-[#1f6f5b] px-4 py-3 font-semibold text-white transition hover:bg-[#185846] hover:shadow-md"
+                className="mt-3 w-full rounded-xl bg-[#1f6ad8] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#1756b5] shadow-xs"
               >
                 Check latest status
               </button>
@@ -642,9 +640,9 @@ function InfoTile({
   compact?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-[#e1e8e6] bg-[#fbfcfc] p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#6f7e79]">{label}</p>
-      <p className={`mt-2 break-words ${strong ? "text-xl font-bold" : "font-semibold"} ${compact ? "text-xs" : ""}`}>
+    <div className="rounded-2xl border border-[#d8e1ee] bg-[#f8fafd] p-4">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[#60708d]">{label}</p>
+      <p className={`mt-1.5 break-words ${strong ? "text-xl font-extrabold text-[#182133]" : "font-bold text-[#182133]"} ${compact ? "text-xs font-mono text-[#1f6ad8]" : ""}`}>
         {value}
       </p>
     </div>
@@ -653,12 +651,12 @@ function InfoTile({
 
 function TrustStep({ title, text, active }: { title: string; text: string; active: boolean }) {
   return (
-    <div className="rounded-lg bg-white p-3">
+    <div className="rounded-xl bg-white border border-[#d8e1ee] p-3.5 shadow-2xs">
       <div className="flex items-center gap-2">
-        <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#1f6f5b]" : "bg-[#c7d2cf]"}`} />
-        <p className="font-semibold">{title}</p>
+        <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#1f6ad8]" : "bg-[#cbd5e1]"}`} />
+        <p className="text-xs font-bold text-[#182133]">{title}</p>
       </div>
-      <p className="mt-2 text-sm text-[#6f7e79]">{text}</p>
+      <p className="mt-1.5 text-[11px] text-[#60708d] leading-relaxed">{text}</p>
     </div>
   )
 }
