@@ -415,7 +415,7 @@ export default function PayPage() {
                 title={paid ? "Official Receipt" : manualReviewPending ? "Owner Review" : "Instant Receipt"}
                 text={
                   paid
-                    ? "Download government BBPS clearing receipt."
+                    ? "Download your confirmed utility payment receipt."
                     : manualReviewPending
                     ? "Proof under landlord verification."
                     : "Delivered immediately after checkout."
@@ -439,7 +439,7 @@ export default function PayPage() {
           <p className="mt-2 text-4xl font-extrabold text-[#182133] tracking-tight">{amountText}</p>
           <p className="mt-2 text-xs text-[#60708d] leading-relaxed">
             {isUtilityBill 
-              ? "Official BBPS receipt with NPCI reference number generated instantly upon payment." 
+              ? "Your payment is collected first. A utility confirmation is available after platform approval and provider success."
               : "Paid rent receipts are delivered to your WhatsApp and email automatically."}
           </p>
 
@@ -530,7 +530,7 @@ export default function PayPage() {
                     ⚡ Bharat Connect (BBPS) Direct Clearing
                   </span>
                   <p className="mt-1.5 text-xs leading-relaxed text-[#51637d]">
-                    To guarantee instant clearing with your DISCOM/Board and provide official BBPS receipts, utility bills are settled directly online via UPI, Cards, or Netbanking.
+                    Pay online via UPI, Cards, or Netbanking. Rentomatic collects your payment, then the platform operator approves payment to your electricity provider. Collection does not mean the utility bill has been cleared.
                   </p>
                 </div>
               ) : (
