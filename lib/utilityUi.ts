@@ -1,5 +1,5 @@
 export type Service = "ELECTRICITY" | "WATER" | "GAS"
-export type HubAccount = { id: string; rent_id: string; utility_type: Service; operator_name: string; consumer_number: string; active?: boolean; property_name?: string }
+export type HubAccount = { id: string; rent_id: string; utility_type: Service; operator_name: string; consumer_number: string; active?: boolean; property_name?: string; responsibility?: string | null }
 export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; created_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null }
 export type BillStage = "due" | "checking" | "processing" | "paid" | "review" | "cancelled"
 export function utilityStage(bill: HubBill): BillStage {

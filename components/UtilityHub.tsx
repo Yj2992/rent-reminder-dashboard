@@ -13,11 +13,14 @@ export function ServiceIcon({ type, className = "h-6 w-6" }: { type?: string; cl
 }
 const primary = "rounded-full bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
 const secondary = "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch, onRemind }: {
+const responsibilityLabel = (value?: string | null) => ({ TENANT_PAYS: "Tenant pays", LANDLORD_PAYS: "Landlord pays", SHARED: "Shared payment", INFORMATIONAL: "Track only" }[value || "TENANT_PAYS"] || "Tenant pays")
+const tenantCanPay = (account?: HubAccount) => ["TENANT_PAYS", "SHARED"].includes(account?.responsibility || "TENANT_PAYS")
+export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch, onRemind, canPay }: {
   accounts: HubAccount[]; bills: HubBill[]; loading?: boolean; error?: string;
   onRefresh: () => void | Promise<unknown>; onPay: (bill: HubBill) => Promise<void>; onReceipt: (bill: HubBill) => Promise<void>;
   onAdd?: (service: Service) => void; onEdit?: (account: HubAccount) => void; onFetch?: (account: HubAccount) => Promise<void>;
   onRemind?: (bill: HubBill, channel: "WHATSAPP" | "EMAIL") => Promise<string | void>;
+  canPay?: (bill: HubBill, account?: HubAccount) => boolean;
 }) {
   const [service, setService] = useState<Service | null>(null)
   const [view, setView] = useState<"accounts" | "activity" | "receipts">("accounts")
@@ -38,6 +41,7 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
   const pending = current.filter(b => ["checking", "processing", "review"].includes(utilityStage(b))).length
   const latest = selected ? bills.find(b => b.id === selected.id) || selected : null
   const selectedAccount = latest && accounts.find(a => a.id === latest.utility_account_id)
+  const selectedCanPay = latest ? (canPay ? canPay(latest, selectedAccount || undefined) : true) : false
   useEffect(() => { setLimit(12) }, [service, view, query])
   useEffect(() => {
     if (!selected) return
@@ -85,7 +89,7 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
         const stage = bill && utilityStage(bill)
         return <article key={account.id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="flex items-start gap-3"><span className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-full " + (services.find(s => s.id === account.utility_type)?.tone || "bg-slate-100")}><ServiceIcon type={account.utility_type}/></span>
-          <div className="min-w-0 flex-1"><h3 className="break-words font-semibold">{account.operator_name}</h3><p className="mt-1 text-xs text-slate-500">{account.property_name ? account.property_name + " · " : ""}••••{account.consumer_number.slice(-4)}</p></div>
+          <div className="min-w-0 flex-1"><h3 className="break-words font-semibold">{account.operator_name}</h3><p className="mt-1 text-xs text-slate-500">{account.property_name ? account.property_name + " · " : ""}••••{account.consumer_number.slice(-4)}</p><p className="mt-1 text-xs font-medium text-blue-700">{responsibilityLabel(account.responsibility)}</p></div>
           {onEdit && <button onClick={() => onEdit(account)} className="px-2 py-1 text-xs font-semibold text-blue-700" aria-label={"Edit " + account.operator_name}>Edit</button>}</div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <div>{bill ? <><p className="text-lg font-semibold">{utilityMoney(bill.bill_amount_paise)}</p><p className="mt-0.5 text-xs text-slate-500">{stageCopy[stage!].label}{stage === "due" ? " · Due " + utilityDate(bill.due_date) : ""}</p></> : <p className="text-sm text-slate-500">No bill fetched yet</p>}</div>
@@ -101,16 +105,17 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4"><h2 id="utility-review-title" className="font-semibold">Review utility bill</h2><button aria-label="Close bill details" disabled={!!busy} onClick={() => setSelected(null)} className="rounded-full px-3 py-2 text-slate-500 hover:bg-slate-100">✕</button></div>
       <div className="space-y-5 p-6">
         <div className="text-center"><span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700"><ServiceIcon type={selectedAccount?.utility_type}/></span><p className="font-semibold">{selectedAccount?.operator_name || "Utility bill"}</p><p className="mt-3 text-3xl font-semibold tracking-tight">{utilityMoney(latest.bill_amount_paise)}</p><p className="mt-2 text-sm text-slate-500">{stageCopy[utilityStage(latest)].label}</p></div>
-        <dl className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm">{[["Consumer", selectedAccount?.consumer_number || latest.consumer_name || "Not supplied"], ["Property", selectedAccount?.property_name], ["Due date", utilityDate(latest.due_date)], ["Billing period", latest.billing_period]].filter(([,v]) => v).map(([label,value]) => <div key={label} className="flex justify-between gap-5"><dt className="text-slate-500">{label}</dt><dd className="break-all text-right font-medium">{value}</dd></div>)}</dl>
+        <dl className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm">{[["Consumer", selectedAccount?.consumer_number || latest.consumer_name || "Not supplied"], ["Property", selectedAccount?.property_name], ["Paid by", responsibilityLabel(selectedAccount?.responsibility)], ["Due date", utilityDate(latest.due_date)], ["Billing period", latest.billing_period]].filter(([,v]) => v).map(([label,value]) => <div key={label} className="flex justify-between gap-5"><dt className="text-slate-500">{label}</dt><dd className="break-all text-right font-medium">{value}</dd></div>)}</dl>
         <p className="text-sm leading-6 text-slate-600">{stageCopy[utilityStage(latest)].detail}</p>
         <details className="text-xs text-slate-500"><summary className="cursor-pointer py-2">Payment references</summary><p className="break-all">Bill: {latest.id}</p>{latest.provider_txn_id && <p className="mt-2 break-all">Provider transaction: {latest.provider_txn_id}</p>}{latest.bbps_ref_id && <p className="mt-2 break-all">BBPS reference: {latest.bbps_ref_id}</p>}</details>
         {actionError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{actionError}</p>}
         {actionNotice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
-        {utilityStage(latest) === "due" && <button className={primary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Preparing checkout…" : "Continue to payment"}</button>}
-        {onRemind && ["due", "checking"].includes(utilityStage(latest)) && <section aria-label="Remind tenant" className="rounded-2xl border border-slate-200 p-4"><div className="mb-3"><h3 className="text-sm font-semibold">Remind tenant</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send this exact bill and its secure payment link.</p></div><div className="grid grid-cols-2 gap-2"><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":whatsapp", () => onRemind(latest, "WHATSAPP"))}>{busy?.endsWith(":whatsapp") ? "Sending…" : "WhatsApp"}</button><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":email", () => onRemind(latest, "EMAIL"))}>{busy?.endsWith(":email") ? "Sending…" : "Email"}</button></div></section>}
+        {utilityStage(latest) === "due" && selectedCanPay && <button className={primary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Preparing checkout…" : "Continue to payment"}</button>}
+        {utilityStage(latest) === "due" && !selectedCanPay && <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">This bill is assigned to the property manager. You can follow its status here without paying it.</p>}
+        {onRemind && tenantCanPay(selectedAccount || undefined) && ["due", "checking"].includes(utilityStage(latest)) && <section aria-label="Remind tenant" className="rounded-2xl border border-slate-200 p-4"><div className="mb-3"><h3 className="text-sm font-semibold">Remind tenant</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send this exact bill and its secure payment link.</p></div><div className="grid grid-cols-2 gap-2"><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":whatsapp", () => onRemind(latest, "WHATSAPP"))}>{busy?.endsWith(":whatsapp") ? "Sending…" : "WhatsApp"}</button><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":email", () => onRemind(latest, "EMAIL"))}>{busy?.endsWith(":email") ? "Sending…" : "Email"}</button></div></section>}
         {utilityStage(latest) === "paid" && <button className={primary + " w-full"} disabled={!!busy} onClick={() => void act(latest.id, () => onReceipt(latest))}>{busy ? "Downloading…" : "Download confirmation"}</button>}
         {!["paid","due"].includes(utilityStage(latest)) && <button className={secondary + " w-full"} disabled={!!busy || loading} onClick={() => void onRefresh()}>{loading ? "Refreshing…" : "Refresh status"}</button>}
-        {utilityStage(latest) === "checking" && <button className={secondary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Opening…" : "Resume existing checkout"}</button>}
+        {utilityStage(latest) === "checking" && selectedCanPay && <button className={secondary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Opening…" : "Resume existing checkout"}</button>}
       </div>
     </dialog>}
   </div>

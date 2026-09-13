@@ -29,6 +29,7 @@ export type TenantUtilityAccount = {
   operator_name: string
   consumer_number: string
   account_holder_name?: string
+  responsibility?: "TENANT_PAYS" | "LANDLORD_PAYS" | "SHARED" | "INFORMATIONAL"
 }
 
 export type TenantUtilityBill = {
@@ -824,6 +825,7 @@ export default function TenantHome() {
           {tab === "utilities" && (
             <UtilityHub key={d.rentId} accounts={d.utilityAccounts || []} bills={d.utilityBills || []}
               loading={utilityRefreshing} error={error}
+              canPay={(_bill, account) => ["TENANT_PAYS", "SHARED"].includes(account?.responsibility || "TENANT_PAYS")}
               onRefresh={async () => { setUtilityRefreshing(true);try { await load() } finally {setUtilityRefreshing(false)} }}
               onPay={async (bill: HubBill) => {
                 if (!["due", "checking"].includes(utilityStage(bill))) throw new Error("This bill is not ready for a new payment. Refresh its status.")
