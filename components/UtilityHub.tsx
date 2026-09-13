@@ -13,10 +13,11 @@ export function ServiceIcon({ type, className = "h-6 w-6" }: { type?: string; cl
 }
 const primary = "rounded-full bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
 const secondary = "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch }: {
+export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch, onRemind }: {
   accounts: HubAccount[]; bills: HubBill[]; loading?: boolean; error?: string;
   onRefresh: () => void | Promise<unknown>; onPay: (bill: HubBill) => Promise<void>; onReceipt: (bill: HubBill) => Promise<void>;
   onAdd?: (service: Service) => void; onEdit?: (account: HubAccount) => void; onFetch?: (account: HubAccount) => Promise<void>;
+  onRemind?: (bill: HubBill, channel: "WHATSAPP" | "EMAIL") => Promise<string | void>;
 }) {
   const [service, setService] = useState<Service | null>(null)
   const [view, setView] = useState<"accounts" | "activity" | "receipts">("accounts")
@@ -24,6 +25,7 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
   const [selected, setSelected] = useState<HubBill | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState("")
+  const [actionNotice, setActionNotice] = useState("")
   const [limit, setLimit] = useState(12)
   const dialog = useRef<HTMLDialogElement>(null)
   const actionLock = useRef(false)
@@ -39,16 +41,16 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
   useEffect(() => { setLimit(12) }, [service, view, query])
   useEffect(() => {
     if (!selected) return
-    setActionError("")
+    setActionError(""); setActionNotice("")
     const focus = document.activeElement as HTMLElement | null
     const el = dialog.current
     el?.showModal()
     return () => { el?.close(); focus?.focus() }
   }, [selected?.id])
-  async function act(id: string, action: () => Promise<void>) {
+  async function act(id: string, action: () => Promise<void | string>) {
     if (actionLock.current) return
-    actionLock.current = true; setBusy(id); setActionError("")
-    try { await action() } catch (e) { setActionError(e instanceof Error ? e.message : "That action could not be completed. Please try again.") }
+    actionLock.current = true; setBusy(id); setActionError(""); setActionNotice("")
+    try { const message = await action(); if (message) setActionNotice(message) } catch (e) { setActionError(e instanceof Error ? e.message : "That action could not be completed. Please try again.") }
     finally { setBusy(null); actionLock.current = false }
   }
   function billButton(bill: HubBill) {
@@ -103,7 +105,9 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
         <p className="text-sm leading-6 text-slate-600">{stageCopy[utilityStage(latest)].detail}</p>
         <details className="text-xs text-slate-500"><summary className="cursor-pointer py-2">Payment references</summary><p className="break-all">Bill: {latest.id}</p>{latest.provider_txn_id && <p className="mt-2 break-all">Provider transaction: {latest.provider_txn_id}</p>}{latest.bbps_ref_id && <p className="mt-2 break-all">BBPS reference: {latest.bbps_ref_id}</p>}</details>
         {actionError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{actionError}</p>}
+        {actionNotice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
         {utilityStage(latest) === "due" && <button className={primary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Preparing checkout…" : "Continue to payment"}</button>}
+        {onRemind && ["due", "checking"].includes(utilityStage(latest)) && <section aria-label="Remind tenant" className="rounded-2xl border border-slate-200 p-4"><div className="mb-3"><h3 className="text-sm font-semibold">Remind tenant</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send this exact bill and its secure payment link.</p></div><div className="grid grid-cols-2 gap-2"><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":whatsapp", () => onRemind(latest, "WHATSAPP"))}>{busy?.endsWith(":whatsapp") ? "Sending…" : "WhatsApp"}</button><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":email", () => onRemind(latest, "EMAIL"))}>{busy?.endsWith(":email") ? "Sending…" : "Email"}</button></div></section>}
         {utilityStage(latest) === "paid" && <button className={primary + " w-full"} disabled={!!busy} onClick={() => void act(latest.id, () => onReceipt(latest))}>{busy ? "Downloading…" : "Download confirmation"}</button>}
         {!["paid","due"].includes(utilityStage(latest)) && <button className={secondary + " w-full"} disabled={!!busy || loading} onClick={() => void onRefresh()}>{loading ? "Refreshing…" : "Refresh status"}</button>}
         {utilityStage(latest) === "checking" && <button className={secondary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Opening…" : "Resume existing checkout"}</button>}
