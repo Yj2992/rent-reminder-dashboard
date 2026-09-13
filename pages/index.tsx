@@ -9,7 +9,7 @@ function paymentToken(value: string) {
     const p = u.pathname.split("/").filter(Boolean)
     if (p[0] === "pay" && p[1]) return decodeURIComponent(p[1])
   } catch {}
-  return decodeURIComponent(v.replace(/^\/+/, "").replace(/^pay\//, ""))
+  try { return decodeURIComponent(v.replace(/^\/+/, "").replace(/^pay\//, "")) } catch { return "" }
 }
 
 export default function Home() {
@@ -131,10 +131,10 @@ export default function Home() {
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#1f6ad8]">Instant Checkout</p>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-[#182133] sm:text-3xl">
-              Pay Rent or Fetch Utility Bill
+              Pay rent and utilities
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#60708d]">
-              Open your invoice directly via payment token, or enter your Electricity, Water, or Piped Gas Consumer Number to fetch and settle your DISCOM bill via Bharat Connect (BBPS).
+              Open a payment link shared with you, or sign in to see utility bills linked to your tenancy.
             </p>
           </div>
 
@@ -142,7 +142,7 @@ export default function Home() {
             {/* Rent Token Input */}
             <form onSubmit={openInvoice} className="rounded-3xl border border-[#ccd5e4] bg-[#fcfdff] p-5 shadow-xs">
               <label className="block text-xs font-bold uppercase tracking-wider text-[#182133]">
-                Rent Payment Link or Token
+                Payment link or token
                 <input
                   value={invoice}
                   onChange={(e) => setInvoice(e.target.value)}
@@ -154,38 +154,16 @@ export default function Home() {
                 disabled={!token}
                 className="mt-3 w-full rounded-xl bg-[#1f6ad8] p-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-[0.99] disabled:opacity-40"
               >
-                Open Rent Invoice →
+                Open payment →
               </button>
             </form>
 
-            {/* Utility Consumer Number */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                const form = e.currentTarget
-                const consumer = (form.elements.namedItem("consumerNumber") as HTMLInputElement)?.value?.trim()
-                if (consumer) {
-                  router.push(`/pay/util_${encodeURIComponent(consumer)}`)
-                }
-              }}
-              className="rounded-3xl border border-[#bfdbfe] bg-[#eff6ff]/60 p-5 shadow-xs"
-            >
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#182133]">
-                ⚡ Electricity / 💧 Water / 🔥 Gas Consumer #
-                <input
-                  name="consumerNumber"
-                  required
-                  placeholder="e.g. 000091278839 (MSEDCL / BESCOM / IGL / DJB)"
-                  className="mt-2 w-full rounded-xl border border-[#bfdbfe] bg-white p-3 text-xs font-mono font-semibold text-[#182133] outline-none transition focus:border-[#1f6ad8] focus:ring-2 focus:ring-[#d9e8ff]"
-                />
-              </label>
-              <button
-                type="submit"
-                className="mt-3 w-full rounded-xl bg-[#1f6ad8] p-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-[0.99]"
-              >
-                ⚡ Fetch &amp; Settle Utility Bill
-              </button>
-            </form>
+            <div className="rounded-3xl border border-blue-200 bg-blue-50/60 p-5">
+              <h3 className="font-semibold">Electricity, water &amp; piped gas</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Sign in to choose a saved utility account, review its bill and track your payments. Your property manager can add a missing connection.</p>
+              <button type="button" onClick={() => router.push("/tenant?tab=utilities")} className="mt-4 w-full rounded-full bg-blue-700 px-5 py-3 text-sm font-semibold text-white">Open my utility bills</button>
+            </div>
+
           </div>
         </div>
       </section>

@@ -1,4 +1,6 @@
 import axios from "axios"
+import UtilityHub from "../components/UtilityHub"
+import { currentUtilityBills, HubBill, utilityStage } from "../lib/utilityUi"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/router"
 import { tenantAuth } from "../lib/tenantAuth"
@@ -41,6 +43,11 @@ export type TenantUtilityBill = {
   units_consumed?: number
   status: "UNPAID" | "PAYMENT_PENDING" | "SETTLEMENT_PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "REVIEW_REQUIRED"
   paid_at?: string
+  bill_status?: string
+  collection_status?: string
+  bbps_status?: string
+  provider_txn_id?: string
+  bbps_ref_id?: string
   created_at?: string
 }
 
@@ -154,6 +161,7 @@ export default function TenantHome() {
   const [items, setItems] = useState<Dashboard[]>([])
   const [selected, setSelected] = useState(0)
   const [tab, setTab] = useState<Tab>("home")
+  useEffect(() => { if (router.isReady && router.query.tab === "utilities") setTab("utilities") }, [router.isReady, router.query.tab])
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -220,22 +228,11 @@ export default function TenantHome() {
   )
   const paid = useMemo(() => d?.invoices.filter((x) => x.status === "PAID") || [], [d])
 
-  const dedupedUtilityBills = useMemo(() => {
-    const rawBills = d?.utilityBills || []
-    const billMap = new Map<string, TenantUtilityBill>()
-    const sorted = [...rawBills].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
-    for (const b of sorted) {
-      if (b.status === "CANCELLED") continue
-      const key = b.utility_account_id || b.rent_id
-      if (!billMap.has(key)) {
-        billMap.set(key, b)
-      }
-    }
-    return Array.from(billMap.values())
-  }, [d?.utilityBills])
+  const [utilityRefreshing, setUtilityRefreshing] = useState(false)
+  const dedupedUtilityBills = useMemo(() => currentUtilityBills(d?.utilityBills || []) as TenantUtilityBill[], [d?.utilityBills])
 
   const dueUtilityBills = useMemo(
-    () => dedupedUtilityBills.filter((b) => b.status === "UNPAID" || b.status === "PAYMENT_PENDING" || b.status === "OVERDUE"),
+    () => dedupedUtilityBills.filter((b) => utilityStage(b) === "due"),
     [dedupedUtilityBills]
   )
 
@@ -621,7 +618,7 @@ export default function TenantHome() {
                         onClick={() => setTab("utilities")}
                         className="rounded-xl border border-[#c6d7f8] bg-[#f4f8ff] px-5 py-3 text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eaf1ff]"
                       >
-                        ⚡ Settle Utilities ({money(dueUtilityPaise)})
+                        View utility bills ({money(dueUtilityPaise)})
                       </button>
                     )}
                   </div>
@@ -762,7 +759,7 @@ export default function TenantHome() {
                               }}
                               className="rounded-xl bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-95"
                             >
-                              🎛️ Pay Utility →
+                              Review utility bill →
                             </button>
                           </div>
                         </div>
@@ -770,7 +767,7 @@ export default function TenantHome() {
                     })
                   ) : (
                     <div className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-xs font-semibold text-[#1f6ad8]">
-                      ✓ All utility bills (electric, water &amp; gas) are settled.
+                      No utility bills are ready for payment. Check Utilities for pending payments and history.
                     </div>
                   )}
                 </div>
@@ -825,212 +822,32 @@ export default function TenantHome() {
           )}
 
           {tab === "utilities" && (
-            <Card title="🎛️ Utility & Submeter Bills (Electric, Water, Gas)">
-              {(() => {
-                const accounts = d.utilityAccounts || []
-                const rawBills = d.utilityBills || []
-                const receipts = d.utilityReceipts || []
-
-                // Deduplicate bills by meter / account to only take the latest bill per meter
-                const billMap = new Map<string, typeof rawBills[0]>()
-                const sorted = [...rawBills].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
-                for (const b of sorted) {
-                  if (b.status === "CANCELLED") continue
-                  const key = b.utility_account_id || b.rent_id
-                  if (!billMap.has(key)) {
-                    billMap.set(key, b)
-                  }
-                }
-                const bills = Array.from(billMap.values())
-
-                const dueNowBills = bills.filter(b => b.status === "UNPAID" || b.status === "PAYMENT_PENDING" || b.status === "OVERDUE")
-                const processingBills = bills.filter(b => b.status === "SETTLEMENT_PENDING")
-                const paidBills = bills.filter(b => b.status === "PAID")
-
-                return (
-                  <div className="space-y-6">
-                    {/* 1. DUE NOW GROUP */}
-                    <div>
-                      <h3 className="text-base font-bold text-[#182133]">Due Now</h3>
-                      {dueNowBills.length === 0 ? (
-                        <div className="mt-2 rounded-[16px] border border-[#eef3fa] bg-[#f8fafc] p-4 text-xs text-[#60708d]">
-                          No utility bills are currently due for payment.
-                        </div>
-                      ) : (
-                        <div className="mt-3 space-y-3">
-                          {dueNowBills.map(bill => {
-                            const acc = accounts.find(a => a.id === bill.utility_account_id)
-                            const opName = acc?.operator_name || "Utility Provider"
-                            const consumer = acc?.consumer_number || bill.consumer_name || ""
-                            const utilType = acc?.utility_type || (opName.toLowerCase().includes("gas") || opName.toLowerCase().includes("igl") || opName.toLowerCase().includes("mgl") ? "GAS" : opName.toLowerCase().includes("water") || opName.toLowerCase().includes("jal") || opName.toLowerCase().includes("bwssb") ? "WATER" : "ELECTRICITY")
-                            const icon = utilType === "WATER" ? "💧" : utilType === "GAS" ? "🔥" : "⚡"
-                            const badgeColor = utilType === "WATER" ? "bg-[#e0f2fe] text-[#0369a1]" : utilType === "GAS" ? "bg-[#ffedd5] text-[#c2410c]" : "bg-[#dde7ff] text-[#1f6ad8]"
-
-                            return (
-                              <div key={bill.id} className="rounded-3xl border border-[#dbe4f0] bg-white p-5 shadow-xs transition hover:shadow-md hover:border-[#1f6ad8]">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${badgeColor} text-sm font-bold shadow-2xs`}>
-                                        {icon}
-                                      </span>
-                                      <div>
-                                        <h4 className="font-bold text-[#182133]">{opName}</h4>
-                                        <span className="text-[10px] font-semibold text-[#60708d] uppercase tracking-wider">
-                                          {utilType === "WATER" ? "Water Board / Tanker" : utilType === "GAS" ? "Piped Gas (PNG)" : "Electricity DISCOM"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <p className="mt-2 text-xs text-[#60708d]">
-                                      Consumer No: <span className="font-mono font-semibold text-[#182133]">••••••{consumer.slice(-6)}</span> {bill.due_date ? `· Due ${bill.due_date}` : ""}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="text-xl font-extrabold text-[#182133]">{money(bill.bill_amount_paise)}</span>
-                                    <span className="ml-2 rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[10px] font-bold text-[#b91c1c]">DUE</span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-4 flex gap-2 border-t border-[#f0f4f9] pt-3">
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        const access = await token()
-                                        const res = await axios.post(
-                                          `${api}/tenant/utility-bills/${bill.id}/payment-order`,
-                                          {},
-                                          { headers: { Authorization: `Bearer ${access}` } }
-                                        )
-                                        if (res.data?.paymentToken) {
-                                          router.push(`/pay/${res.data.paymentToken}`)
-                                        } else if (res.data?.paymentUrl) {
-                                          router.push(res.data.paymentUrl)
-                                        } else {
-                                          alert(res.data?.message || "Could not initialize checkout. Please try again.")
-                                        }
-                                      } catch (err: any) {
-                                        alert(err.response?.data?.message || "Failed to initialize payment checkout")
-                                      }
-                                    }}
-                                    className="rounded-xl bg-[#1f6ad8] px-5 py-2.5 text-xs font-bold text-white shadow-xs transition duration-200 hover:bg-[#1756b5] active:scale-95"
-                                  >
-                                    Review &amp; Pay Now →
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 2. PROCESSING GROUP */}
-                    <div>
-                      <h3 className="text-base font-bold text-[#182133]">Processing Settlements</h3>
-                      {processingBills.length === 0 ? (
-                        <div className="mt-2 rounded-[16px] border border-[#eef3fa] bg-[#f8fafc] p-4 text-xs text-[#60708d]">
-                          No utility payments are currently in settlement processing.
-                        </div>
-                      ) : (
-                        <div className="mt-2 space-y-2">
-                          {processingBills.map(bill => {
-                            const acc = accounts.find(a => a.id === bill.utility_account_id)
-                            return (
-                              <div key={bill.id} className="rounded-[16px] border border-[#bfdbfe] bg-[#eff6ff] p-4 text-xs text-[#1e40af]">
-                                <div className="flex items-center justify-between font-bold">
-                                  <div className="flex items-center gap-2">
-                                    <span>⏳</span>
-                                    <span>Payment received — Settlement in progress for {acc?.operator_name || "Utility Board"}</span>
-                                  </div>
-                                  <span>{money(bill.bill_amount_paise)}</span>
-                                </div>
-                                <p className="mt-1 text-[#60708d]">
-                                  Your payment of {money(bill.bill_amount_paise)} is being cleared directly with your utility board via Bharat Connect. No further action is required.
-                                </p>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 3. HISTORY GROUP */}
-                    <div>
-                      <h3 className="text-base font-bold text-[#182133]">Payment History & Official Receipts</h3>
-                      {paidBills.length === 0 ? (
-                        <div className="mt-2 rounded-[16px] border border-[#eef3fa] bg-[#f8fafc] p-4 text-xs text-[#60708d]">
-                          No settled utility receipts on record yet.
-                        </div>
-                      ) : (
-                        <div className="mt-3 overflow-hidden rounded-[16px] border border-[#dbe4f0] bg-white">
-                          <table className="w-full text-left text-xs">
-                            <thead className="border-b border-[#dbe4f0] bg-[#f8fafc] text-[#60708d]">
-                              <tr>
-                                <th className="p-3.5 font-semibold">Utility Board</th>
-                                <th className="p-3.5 font-semibold">Billing Period</th>
-                                <th className="p-3.5 font-semibold">Amount</th>
-                                <th className="p-3.5 font-semibold">Status</th>
-                                <th className="p-3.5 font-semibold">Receipt</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#eef3fa]">
-                              {paidBills.map(bill => {
-                                const acc = accounts.find(a => a.id === bill.utility_account_id)
-
-                                return (
-                                  <tr key={bill.id}>
-                                    <td className="p-3.5 font-bold text-[#182133]">{acc?.operator_name || "Utility Board"}</td>
-                                    <td className="p-3.5 text-[#60708d]">{bill.billing_period || bill.due_date || "—"}</td>
-                                    <td className="p-3.5 font-bold text-[#182133]">{money(bill.bill_amount_paise)}</td>
-                                    <td className="p-3.5">
-                                      <span className="rounded-full bg-[#d4f4e2] px-2 py-0.5 text-[10px] font-bold text-[#1a6641]">
-                                        BBPS CLEARED
-                                      </span>
-                                    </td>
-                                    <td className="p-3.5">
-                                      <button
-                                        onClick={async () => {
-                                          try {
-                                            const access = await token()
-                                            if (!access) return
-                                            const response = await fetch(`${api}/utility/receipts/${bill.id}/download`, {
-                                              headers: { Authorization: `Bearer ${access}` }
-                                            })
-                                            if (!response.ok) {
-                                              const err = await response.text()
-                                              alert(`Could not download receipt: ${err}`)
-                                              return
-                                            }
-                                            const blob = await response.blob()
-                                            const blobUrl = window.URL.createObjectURL(blob)
-                                            const a = document.createElement("a")
-                                            a.href = blobUrl
-                                            a.download = `receipt_BBPS_${bill.id.slice(0, 8)}.html`
-                                            document.body.appendChild(a)
-                                            a.click()
-                                            a.remove()
-                                            window.URL.revokeObjectURL(blobUrl)
-                                          } catch (err: any) {
-                                            alert(err.message || "Failed to download receipt")
-                                          }
-                                        }}
-                                        className="rounded-[8px] border border-[#dbe4f0] px-2.5 py-1 text-[11px] font-semibold text-[#1f6ad8] hover:bg-[#f4f8ff]"
-                                      >
-                                        Download Receipt
-                                      </button>
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })()}
-            </Card>
+            <UtilityHub key={d.rentId} accounts={d.utilityAccounts || []} bills={d.utilityBills || []}
+              loading={utilityRefreshing} error={error}
+              onRefresh={async () => { setUtilityRefreshing(true);try { await load() } finally {setUtilityRefreshing(false)} }}
+              onPay={async (bill: HubBill) => {
+                if (!["due", "checking"].includes(utilityStage(bill))) throw new Error("This bill is not ready for a new payment. Refresh its status.")
+                const access = await token()
+                if (!access) throw new Error("Please sign in again.")
+                try {
+                  const res = await axios.post(`${api}/tenant/utility-bills/${encodeURIComponent(bill.id)}/payment-order`, {}, { headers: { Authorization: `Bearer ${access}` } })
+                  if (res.data?.paymentToken) await router.push("/pay/" + encodeURIComponent(res.data.paymentToken))
+                  else if (res.data?.paymentUrl) {
+                    const url = new URL(res.data.paymentUrl, window.location.origin)
+                    if (url.protocol !== "https:" && url.origin !== window.location.origin) throw new Error("Invalid checkout link.")
+                    window.location.assign(url.toString())
+                  } else throw new Error(res.data?.message || "Checkout could not be prepared.")
+                } catch (e) { throw new Error(axios.isAxiosError(e) ? String(e.response?.data?.message || "Checkout could not be prepared. Please try again.") : e instanceof Error ? e.message : "Checkout unavailable.") }
+              }}
+              onReceipt={async bill => {
+                const access = await token()
+                if (!access) throw new Error("Please sign in again.")
+                const response = await fetch(`${api}/utility/receipts/${encodeURIComponent(bill.id)}/download`, { headers: { Authorization: `Bearer ${access}` } })
+                if (!response.ok) throw new Error("A verified confirmation is not available yet. Refresh or contact your property manager.")
+                const url = URL.createObjectURL(await response.blob())
+                const link = document.createElement("a");link.href=url;link.download="utility-confirmation-"+bill.id.slice(0,8)+".html";link.click();URL.revokeObjectURL(url)
+              }}
+            />
           )}
 
           {tab === "maintenance" && (

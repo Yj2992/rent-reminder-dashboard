@@ -342,7 +342,7 @@ export default function PayPage() {
                 {isUtilityBill ? (invoice.companyName || "Utility Board") : (invoice.companyName || "Rentomatic")}
               </p>
               <p className="text-xs text-[#60708d]">
-                {isUtilityBill ? "Bharat Connect • BBPS Verified Utility Desk" : "Secure Rent & Property Desk"}
+                {isUtilityBill ? "Rentomatic utility checkout" : "Secure Rent & Property Desk"}
               </p>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function PayPage() {
               : "border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]"
           }`}>
             <span className={`h-2 w-2 rounded-full ${isUtilityBill ? "bg-[#1f6ad8]" : "bg-[#15803d]"}`} />
-            {isUtilityBill ? "BBPS Instant Settlement" : "1-Click UPI Checkout"}
+            {isUtilityBill ? "Secure checkout" : "1-Click UPI Checkout"}
           </span>
         </div>
       </header>
@@ -386,35 +386,37 @@ export default function PayPage() {
                   : "bg-[#fffbeb] text-[#b45309] border border-[#fde68a]"
               }`}
             >
-              {paid ? "✓ SETTLED & PAID" : statusLabel}
+              {paid ? (isUtilityBill ? "Payment collected" : "✓ SETTLED & PAID") : statusLabel}
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <InfoTile label="Total Payable" value={amountText} strong />
             <InfoTile label="Due Date" value={invoice.dueDate || "Due on presentation"} />
-            <InfoTile label={isUtilityBill ? "Consumer Number" : "Invoice Ref"} value={isUtilityBill ? invoice.invoiceNumber?.replace("EBILL-", "") || invoice.invoiceId : invoice.invoiceId} compact />
+            <InfoTile label={isUtilityBill ? "Bill reference" : "Invoice Ref"} value={isUtilityBill ? invoice.invoiceNumber || "Utility bill" : invoice.invoiceId} compact />
           </div>
 
           <div className="mt-6 rounded-2xl border border-[#d8e8fe] bg-gradient-to-br from-[#f8fafd] to-[#f0f7ff] p-5">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#1e40af]">
-              {isUtilityBill ? "⚡ BBPS Settlement Assurance" : "Payment Verification Steps"}
+              {isUtilityBill ? "How your utility payment works" : "Payment Verification Steps"}
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <TrustStep 
-                title={isUtilityBill ? "1. Verified Bill" : "1. Review Amount"} 
-                text={isUtilityBill ? "Fetched live from State DISCOM via BBPS." : "Check monthly rent & details."} 
+                title={isUtilityBill ? "1. Review bill" : "1. Review Amount"}
+                text={isUtilityBill ? "Check the provider, amount and due date." : "Check monthly rent & details."}
                 active 
               />
               <TrustStep
-                title={isUtilityBill ? "2. Instant Clearing" : "2. Choose Method"}
-                text={isUtilityBill ? "Directly credited to DISCOM without delay." : "UPI, Netbanking, Cards or Proof."}
+                title={isUtilityBill ? "2. Pay securely" : "2. Choose Method"}
+                text={isUtilityBill ? "Your payment is collected by Rentomatic." : "UPI, Netbanking, Cards or Proof."}
                 active={!paid && !manualReviewPending}
               />
               <TrustStep
-                title={paid ? "Official Receipt" : manualReviewPending ? "Owner Review" : "Instant Receipt"}
+                title={isUtilityBill ? "3. Provider confirmation" : paid ? "Receipt" : manualReviewPending ? "Owner Review" : "Receipt"}
                 text={
-                  paid
+                  isUtilityBill
+                    ? "Rentomatic approves the bill. Track provider confirmation in Utilities."
+                    : paid
                     ? "Download your confirmed utility payment receipt."
                     : manualReviewPending
                     ? "Proof under landlord verification."
@@ -503,7 +505,7 @@ export default function PayPage() {
                   : "bg-gradient-to-r from-[#1f6ad8] to-[#1e40af] hover:from-[#1756b5] hover:to-[#1e3a8a] hover:shadow-md active:scale-[0.99]"
               }`}
             >
-              {paid ? "✓ Payment Settled" : paying ? "Opening Cashfree UPI..." : "💳 Pay with UPI / GPay / Cards"}
+              {paid ? (isUtilityBill ? "✓ Payment collected" : "✓ Payment Settled") : paying ? "Opening checkout…" : "Pay with UPI / Cards"}
             </button>
 
             {!paid && paying && (
@@ -530,7 +532,7 @@ export default function PayPage() {
                     ⚡ Bharat Connect (BBPS) Direct Clearing
                   </span>
                   <p className="mt-1.5 text-xs leading-relaxed text-[#51637d]">
-                    Pay online via UPI, Cards, or Netbanking. Rentomatic collects your payment, then the platform operator approves payment to your electricity provider. Collection does not mean the utility bill has been cleared.
+                    Pay online via UPI, Cards, or Netbanking. Rentomatic collects your payment, then approves payment to your utility provider. You can track provider confirmation in Utilities.
                   </p>
                 </div>
               ) : (

@@ -27,6 +27,8 @@ export default function Success() {
   const [message, setMessage] = useState("Refreshing paid invoice...")
 
   const paid = paymentStatus?.status === "PAID"
+  const collected = paymentStatus?.status === "COLLECTED"
+  const isUtility = Boolean(invoice?.invoiceNumber?.startsWith("EBILL-") || invoice?.invoiceNumber?.startsWith("UTIL-"))
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
     [invoice]
@@ -41,15 +43,31 @@ export default function Success() {
 
     let cancelled = false
     let attempts = 0
+    let resolvedInvoice: TenantPortalInvoice | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
 
     async function loadPaidInvoice() {
       attempts += 1
       try {
-        const statusResponse = await axios.get<TenantPortalPaymentStatus>(
-          `${backendBaseUrl}/public/payments/status?token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(orderId)}`
-        )
+        if (!resolvedInvoice) {
+          const result = await axios.get<TenantPortalInvoice>(`${backendBaseUrl}${PUBLIC_INVOICES_PATH}/${encodeURIComponent(token)}`)
+          if (cancelled) return
+          resolvedInvoice = result.data
+          setInvoice(result.data)
+        }
+        const utility = resolvedInvoice.invoiceNumber?.startsWith("EBILL-") || resolvedInvoice.invoiceNumber?.startsWith("UTIL-")
+        const statusResponse = utility
+          ? await axios.post<TenantPortalPaymentStatus>(`${backendBaseUrl}/payments/verify-cashfree`, { token, order_id: orderId })
+          : await axios.get<TenantPortalPaymentStatus>(`${backendBaseUrl}/public/payments/status?token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(orderId)}`)
+
         if (cancelled) return
         setPaymentStatus(statusResponse.data)
+
+        if (statusResponse.data.status === "COLLECTED") {
+          setMessage("Payment collected. Rentomatic approval and utility-provider confirmation are next. Track progress in Utilities; do not pay this bill again.")
+          setLoading(false)
+          return
+        }
 
         if (statusResponse.data.status === "PAID") {
           const invoiceResponse = await axios.get<TenantPortalInvoice>(
@@ -69,8 +87,8 @@ export default function Success() {
         }
 
         if (attempts < 8) {
-          setMessage("Payment received by gateway. Confirming payment…")
-          window.setTimeout(loadPaidInvoice, 1500)
+          setMessage("Checking the payment provider for confirmation…")
+          timer = setTimeout(loadPaidInvoice, 1500)
         } else {
           setMessage("Confirmation is taking longer than usual. Your payment remains pending reconciliation; please do not pay again yet.")
           setLoading(false)
@@ -78,7 +96,7 @@ export default function Success() {
       } catch {
         if (cancelled) return
         if (attempts < 4) {
-          window.setTimeout(loadPaidInvoice, 1500)
+          timer = setTimeout(loadPaidInvoice, 1500)
         } else {
           setMessage("We could not refresh the committed status. Please check again shortly; do not pay again yet.")
           setLoading(false)
@@ -90,6 +108,7 @@ export default function Success() {
 
     return () => {
       cancelled = true
+      if (timer) clearTimeout(timer)
     }
   }, [token, orderId])
 
@@ -101,11 +120,13 @@ export default function Success() {
             {paid ? "✓" : "…"}
           </div>
           <p className={`text-sm font-semibold uppercase tracking-wide ${paid ? "text-[#207348]" : "text-[#8a6400]"}`}>
-            {paid ? "Payment confirmed" : "Payment processing"}
+            {collected ? "Payment collected" : paid ? "Payment confirmed" : "Payment processing"}
           </p>
-          <h1 className="mt-2 text-3xl font-bold">{paid ? "Rent payment received" : "Confirming your payment"}</h1>
+          <h1 className="mt-2 text-3xl font-bold">{collected ? "Your utility payment is received" : paid ? (isUtility ? "Utility payment received" : "Rent payment received") : "Checking your payment"}</h1>
           <p className="mt-3 text-[#5d6d68]">
-            {paid
+            {collected
+              ? "Your utility bill is awaiting approval and provider confirmation."
+              : paid
               ? "Your paid invoice is updated below."
               : "We are waiting for authenticated confirmation from the payment provider."}
           </p>
@@ -119,7 +140,7 @@ export default function Success() {
                 </p>
               </div>
               <span className="rounded-full bg-[#e9f8ef] px-3 py-1 text-xs font-semibold text-[#207348]">
-                {paid ? "Paid" : paymentStatus?.status === "RECONCILIATION_REQUIRED" ? "Needs review" : "Processing"}
+                {collected ? "Collected" : paid ? "Paid" : paymentStatus?.status === "RECONCILIATION_REQUIRED" ? "Needs review" : "Processing"}
               </span>
             </div>
 
@@ -140,6 +161,7 @@ export default function Success() {
           </div>
 
           <div className="mt-6 space-y-3">
+            {isUtility && <Link href="/tenant?tab=utilities" className="block w-full rounded-full bg-blue-700 px-4 py-3 text-center font-semibold text-white">View utility payments</Link>}
             {invoice?.publicUrl && paid && (
               <a
                 href={invoice.publicUrl}
