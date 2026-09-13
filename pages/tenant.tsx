@@ -751,13 +751,7 @@ export default function TenantHome() {
                               {money(bill.bill_amount_paise)}
                             </span>
                             <button
-                              onClick={() => {
-                                if (consumer) {
-                                  router.push(`/pay/util_${encodeURIComponent(consumer)}`)
-                                } else {
-                                  setTab("utilities")
-                                }
-                              }}
+                              onClick={() => setTab("utilities")}
                               className="rounded-xl bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-95"
                             >
                               Review utility bill →
