@@ -1,6 +1,15 @@
 export type Service = "ELECTRICITY" | "WATER" | "GAS"
 export type HubAccount = { id: string; rent_id: string; utility_type: Service; operator_name: string; consumer_number: string; active?: boolean; property_name?: string; responsibility?: string | null }
-export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; created_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null }
+export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; created_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null; responsibility?: string | null; collected_amount_paise?: number; tenant_collected_paise?: number; landlord_collected_paise?: number }
+export type UtilityPayerRole = "TENANT" | "LANDLORD"
+export function utilitySharePaise(total: number, responsibility: string | null | undefined, payer: UtilityPayerRole) {
+  if (responsibility === "SHARED") return payer === "TENANT" ? Math.ceil(total / 2) : Math.floor(total / 2)
+  return total
+}
+export function utilityShareRemaining(bill: HubBill, responsibility: string | null | undefined, payer: UtilityPayerRole) {
+  const paid = payer === "TENANT" ? bill.tenant_collected_paise || 0 : bill.landlord_collected_paise || 0
+  return Math.max(0, utilitySharePaise(bill.bill_amount_paise, responsibility, payer) - paid)
+}
 export type BillStage = "due" | "checking" | "processing" | "paid" | "review" | "cancelled"
 export function utilityStage(bill: HubBill): BillStage {
   if (bill.bbps_status === "BBPS_SUCCESS") return "paid"

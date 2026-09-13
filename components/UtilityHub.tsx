@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { currentUtilityBills, HubAccount, HubBill, Service, stageCopy, utilityDate, utilityMoney, utilityStage } from "../lib/utilityUi"
+import { currentUtilityBills, HubAccount, HubBill, Service, stageCopy, UtilityPayerRole, utilityDate, utilityMoney, utilitySharePaise, utilityShareRemaining, utilityStage } from "../lib/utilityUi"
 
 const services: { id: Service; name: string; hint: string; tone: string }[] = [
   { id: "ELECTRICITY", name: "Electricity", hint: "Power your home", tone: "bg-amber-50 text-amber-600" },
@@ -15,12 +15,12 @@ const primary = "rounded-full bg-blue-700 px-5 py-3 text-sm font-semibold text-w
 const secondary = "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
 const responsibilityLabel = (value?: string | null) => ({ TENANT_PAYS: "Tenant pays", LANDLORD_PAYS: "Landlord pays", SHARED: "Shared payment", INFORMATIONAL: "Track only" }[value || "TENANT_PAYS"] || "Tenant pays")
 const tenantCanPay = (account?: HubAccount) => ["TENANT_PAYS", "SHARED"].includes(account?.responsibility || "TENANT_PAYS")
-export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch, onRemind, canPay }: {
+export default function UtilityHub({ accounts, bills, loading = false, error, onRefresh, onPay, onReceipt, onAdd, onEdit, onFetch, onRemind, canPay, portalRole = "OWNER" }: {
   accounts: HubAccount[]; bills: HubBill[]; loading?: boolean; error?: string;
-  onRefresh: () => void | Promise<unknown>; onPay: (bill: HubBill) => Promise<void>; onReceipt: (bill: HubBill) => Promise<void>;
+  onRefresh: () => void | Promise<unknown>; onPay: (bill: HubBill, payerRole: UtilityPayerRole) => Promise<void>; onReceipt: (bill: HubBill) => Promise<void>;
   onAdd?: (service: Service) => void; onEdit?: (account: HubAccount) => void; onFetch?: (account: HubAccount) => Promise<void>;
   onRemind?: (bill: HubBill, channel: "WHATSAPP" | "EMAIL") => Promise<string | void>;
-  canPay?: (bill: HubBill, account?: HubAccount) => boolean;
+  canPay?: (bill: HubBill, account: HubAccount | undefined, payerRole: UtilityPayerRole) => boolean; portalRole?: "OWNER" | "TENANT";
 }) {
   const [service, setService] = useState<Service | null>(null)
   const [view, setView] = useState<"accounts" | "activity" | "receipts">("accounts")
@@ -41,7 +41,14 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
   const pending = current.filter(b => ["checking", "processing", "review"].includes(utilityStage(b))).length
   const latest = selected ? bills.find(b => b.id === selected.id) || selected : null
   const selectedAccount = latest && accounts.find(a => a.id === latest.utility_account_id)
-  const selectedCanPay = latest ? (canPay ? canPay(latest, selectedAccount || undefined) : true) : false
+  const selectedResponsibility = latest?.responsibility || selectedAccount?.responsibility || "TENANT_PAYS"
+  const tenantAllowed = selectedResponsibility === "TENANT_PAYS" || selectedResponsibility === "SHARED"
+  const landlordAllowed = selectedResponsibility === "LANDLORD_PAYS" || selectedResponsibility === "SHARED"
+  const tenantShare = latest ? utilitySharePaise(latest.bill_amount_paise, selectedResponsibility, "TENANT") : 0
+  const landlordShare = latest ? utilitySharePaise(latest.bill_amount_paise, selectedResponsibility, "LANDLORD") : 0
+  const tenantRemaining = latest ? utilityShareRemaining(latest, selectedResponsibility, "TENANT") : 0
+  const landlordRemaining = latest ? utilityShareRemaining(latest, selectedResponsibility, "LANDLORD") : 0
+  const payerCanPay = (role: UtilityPayerRole) => latest ? (canPay ? canPay(latest, selectedAccount || undefined, role) : true) : false
   useEffect(() => { setLimit(12) }, [service, view, query])
   useEffect(() => {
     if (!selected) return
@@ -104,18 +111,20 @@ export default function UtilityHub({ accounts, bills, loading = false, error, on
     {latest && <dialog ref={dialog} aria-labelledby="utility-review-title" onCancel={e => {e.preventDefault();if (!busy) setSelected(null)}} className="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-3xl border-0 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/50">
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4"><h2 id="utility-review-title" className="font-semibold">Review utility bill</h2><button aria-label="Close bill details" disabled={!!busy} onClick={() => setSelected(null)} className="rounded-full px-3 py-2 text-slate-500 hover:bg-slate-100">✕</button></div>
       <div className="space-y-5 p-6">
-        <div className="text-center"><span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700"><ServiceIcon type={selectedAccount?.utility_type}/></span><p className="font-semibold">{selectedAccount?.operator_name || "Utility bill"}</p><p className="mt-3 text-3xl font-semibold tracking-tight">{utilityMoney(latest.bill_amount_paise)}</p><p className="mt-2 text-sm text-slate-500">{stageCopy[utilityStage(latest)].label}</p></div>
+        <div className="text-center"><span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700"><ServiceIcon type={selectedAccount?.utility_type}/></span><p className="font-semibold">{selectedAccount?.operator_name || "Utility bill"}</p><p className="mt-3 text-3xl font-semibold tracking-tight">{utilityMoney(latest.bill_amount_paise)}</p><p className="mt-2 text-sm text-slate-500">{stageCopy[utilityStage(latest)].label}{(latest.collected_amount_paise || 0) > 0 ? ` · ${utilityMoney(latest.collected_amount_paise || 0)} collected` : ""}</p></div>
         <dl className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm">{[["Consumer", selectedAccount?.consumer_number || latest.consumer_name || "Not supplied"], ["Property", selectedAccount?.property_name], ["Paid by", responsibilityLabel(selectedAccount?.responsibility)], ["Due date", utilityDate(latest.due_date)], ["Billing period", latest.billing_period]].filter(([,v]) => v).map(([label,value]) => <div key={label} className="flex justify-between gap-5"><dt className="text-slate-500">{label}</dt><dd className="break-all text-right font-medium">{value}</dd></div>)}</dl>
         <p className="text-sm leading-6 text-slate-600">{stageCopy[utilityStage(latest)].detail}</p>
         <details className="text-xs text-slate-500"><summary className="cursor-pointer py-2">Payment references</summary><p className="break-all">Bill: {latest.id}</p>{latest.provider_txn_id && <p className="mt-2 break-all">Provider transaction: {latest.provider_txn_id}</p>}{latest.bbps_ref_id && <p className="mt-2 break-all">BBPS reference: {latest.bbps_ref_id}</p>}</details>
         {actionError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{actionError}</p>}
         {actionNotice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
-        {utilityStage(latest) === "due" && selectedCanPay && <button className={primary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Preparing checkout…" : "Continue to payment"}</button>}
-        {utilityStage(latest) === "due" && !selectedCanPay && <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">This bill is assigned to the property manager. You can follow its status here without paying it.</p>}
-        {onRemind && tenantCanPay(selectedAccount || undefined) && ["due", "checking"].includes(utilityStage(latest)) && <section aria-label="Remind tenant" className="rounded-2xl border border-slate-200 p-4"><div className="mb-3"><h3 className="text-sm font-semibold">Remind tenant</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send this exact bill and its secure payment link.</p></div><div className="grid grid-cols-2 gap-2"><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":whatsapp", () => onRemind(latest, "WHATSAPP"))}>{busy?.endsWith(":whatsapp") ? "Sending…" : "WhatsApp"}</button><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":email", () => onRemind(latest, "EMAIL"))}>{busy?.endsWith(":email") ? "Sending…" : "Email"}</button></div></section>}
+        {selectedResponsibility === "SHARED" && <section className="grid grid-cols-2 gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm"><div><p className="text-slate-500">Tenant half</p><p className="mt-1 font-semibold">{utilityMoney(tenantShare)}</p><p className="text-xs text-slate-500">{tenantRemaining ? `${utilityMoney(tenantRemaining)} remaining` : "Collected"}</p></div><div><p className="text-slate-500">Landlord half</p><p className="mt-1 font-semibold">{utilityMoney(landlordShare)}</p><p className="text-xs text-slate-500">{landlordRemaining ? `${utilityMoney(landlordRemaining)} remaining` : "Collected"}</p></div></section>}
+        {["due", "checking"].includes(utilityStage(latest)) && portalRole === "TENANT" && tenantAllowed && tenantRemaining > 0 && payerCanPay("TENANT") && <button className={primary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":tenant", () => onPay(latest, "TENANT"))}>{busy ? "Preparing checkout…" : selectedResponsibility === "SHARED" ? `Pay my half · ${utilityMoney(tenantRemaining)}` : "Continue to payment"}</button>}
+        {["due", "checking"].includes(utilityStage(latest)) && portalRole === "TENANT" && (!tenantAllowed || tenantRemaining === 0) && <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">{tenantRemaining === 0 && tenantAllowed ? "Your share has been collected. Waiting for the remaining payment or provider confirmation." : "This bill is assigned to the property manager. You can follow its status here without paying it."}</p>}
+        {["due", "checking"].includes(utilityStage(latest)) && portalRole === "OWNER" && <div className="grid gap-2 sm:grid-cols-2">{tenantAllowed && tenantRemaining > 0 && <button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":tenant", () => onPay(latest, "TENANT"))}>{busy ? "Preparing…" : selectedResponsibility === "SHARED" ? `Tenant half · ${utilityMoney(tenantRemaining)}` : "Create tenant payment link"}</button>}{landlordAllowed && landlordRemaining > 0 && <button className={primary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":landlord", () => onPay(latest, "LANDLORD"))}>{busy ? "Preparing…" : selectedResponsibility === "SHARED" ? `Pay landlord half · ${utilityMoney(landlordRemaining)}` : "Pay as landlord"}</button>}</div>}
+        {selectedResponsibility === "INFORMATIONAL" && ["due", "checking"].includes(utilityStage(latest)) && <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">This account is set to Track only. No Rentomatic checkout will be created.</p>}
+        {onRemind && tenantCanPay(selectedAccount || undefined) && tenantRemaining > 0 && ["due", "checking"].includes(utilityStage(latest)) && <section aria-label="Remind tenant" className="rounded-2xl border border-slate-200 p-4"><div className="mb-3"><h3 className="text-sm font-semibold">Remind tenant</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send the tenant's {selectedResponsibility === "SHARED" ? "50% share" : "bill"} and secure payment link.</p></div><div className="grid grid-cols-2 gap-2"><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":whatsapp", () => onRemind(latest, "WHATSAPP"))}>{busy?.endsWith(":whatsapp") ? "Sending…" : "WhatsApp"}</button><button className={secondary} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id + ":email", () => onRemind(latest, "EMAIL"))}>{busy?.endsWith(":email") ? "Sending…" : "Email"}</button></div></section>}
         {utilityStage(latest) === "paid" && <button className={primary + " w-full"} disabled={!!busy} onClick={() => void act(latest.id, () => onReceipt(latest))}>{busy ? "Downloading…" : "Download confirmation"}</button>}
         {!["paid","due"].includes(utilityStage(latest)) && <button className={secondary + " w-full"} disabled={!!busy || loading} onClick={() => void onRefresh()}>{loading ? "Refreshing…" : "Refresh status"}</button>}
-        {utilityStage(latest) === "checking" && selectedCanPay && <button className={secondary + " w-full"} disabled={!!busy || loading || !!error} onClick={() => void act(latest.id, () => onPay(latest))}>{busy ? "Opening…" : "Resume existing checkout"}</button>}
       </div>
     </dialog>}
   </div>

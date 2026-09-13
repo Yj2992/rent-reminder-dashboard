@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { currentUtilityBills, HubBill, utilityMoney, utilityStage } from "../lib/utilityUi"
+import { currentUtilityBills, HubBill, utilityMoney, utilitySharePaise, utilityShareRemaining, utilityStage } from "../lib/utilityUi"
 const bill = (id: string, extra: Partial<HubBill> = {}): HubBill => ({ id, utility_account_id: "meter", rent_id: "rent", bill_amount_paise: 245050, status: "UNPAID", created_at: id, ...extra })
 describe("utility payment presentation", () => {
   it("never offers a new payment for collected, uncertain, legacy or refunded bills", () => {
@@ -17,4 +17,9 @@ describe("utility payment presentation", () => {
     expect(currentUtilityBills([bill("1"), bill("2", { status: "CANCELLED" })]).map(b => b.id)).toEqual(["2","1"])
   })
   it("keeps paise visible during review", () => { expect(utilityMoney(245050)).toContain("2,450.50") })
+  it("splits odd paise without losing or duplicating money", () => {
+    expect(utilitySharePaise(10001, "SHARED", "TENANT")).toBe(5001)
+    expect(utilitySharePaise(10001, "SHARED", "LANDLORD")).toBe(5000)
+    expect(utilityShareRemaining(bill("s", { bill_amount_paise: 10001, tenant_collected_paise: 5001 }), "SHARED", "TENANT")).toBe(0)
+  })
 })

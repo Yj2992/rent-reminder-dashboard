@@ -63,8 +63,8 @@ export default function Success() {
         if (cancelled) return
         setPaymentStatus(statusResponse.data)
 
-        if (statusResponse.data.status === "COLLECTED") {
-          setMessage("Payment collected. Rentomatic approval and utility-provider confirmation are next. Track progress in Utilities; do not pay this bill again.")
+        if (statusResponse.data.status === "COLLECTED" || statusResponse.data.status === "PARTIALLY_COLLECTED") {
+          setMessage(statusResponse.data.message || (statusResponse.data.status === "PARTIALLY_COLLECTED" ? "Your share is collected. The other payer must complete their share before Rentomatic can approve the utility payment." : "Payment collected. Rentomatic approval and utility-provider confirmation are next. Track progress in Utilities; do not pay this bill again."))
           setLoading(false)
           return
         }

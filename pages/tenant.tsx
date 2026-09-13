@@ -49,6 +49,10 @@ export type TenantUtilityBill = {
   bbps_status?: string
   provider_txn_id?: string
   bbps_ref_id?: string
+  responsibility?: "TENANT_PAYS" | "LANDLORD_PAYS" | "SHARED" | "INFORMATIONAL"
+  collected_amount_paise?: number
+  tenant_collected_paise?: number
+  landlord_collected_paise?: number
   created_at?: string
 }
 
@@ -819,7 +823,8 @@ export default function TenantHome() {
           {tab === "utilities" && (
             <UtilityHub key={d.rentId} accounts={d.utilityAccounts || []} bills={d.utilityBills || []}
               loading={utilityRefreshing} error={error}
-              canPay={(_bill, account) => ["TENANT_PAYS", "SHARED"].includes(account?.responsibility || "TENANT_PAYS")}
+              portalRole="TENANT"
+              canPay={(bill, account, payerRole) => payerRole === "TENANT" && ["TENANT_PAYS", "SHARED"].includes(bill.responsibility || account?.responsibility || "TENANT_PAYS")}
               onRefresh={async () => { setUtilityRefreshing(true);try { await load() } finally {setUtilityRefreshing(false)} }}
               onPay={async (bill: HubBill) => {
                 if (!["due", "checking"].includes(utilityStage(bill))) throw new Error("This bill is not ready for a new payment. Refresh its status.")
