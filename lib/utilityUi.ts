@@ -1,6 +1,6 @@
 export type Service = "ELECTRICITY" | "WATER" | "GAS"
 export type HubAccount = { id: string; rent_id: string; utility_type: Service; operator_name: string; consumer_number: string; active?: boolean; property_name?: string; responsibility?: string | null }
-export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; created_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null; responsibility?: string | null; collected_amount_paise?: number; tenant_collected_paise?: number; landlord_collected_paise?: number }
+export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; provider_checked_at?: string; created_at?: string; updated_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null; responsibility?: string | null; collected_amount_paise?: number; tenant_collected_paise?: number; landlord_collected_paise?: number }
 export type UtilityPayerRole = "TENANT" | "LANDLORD"
 export function utilitySharePaise(total: number, responsibility: string | null | undefined, payer: UtilityPayerRole) {
   if (responsibility === "SHARED") return payer === "TENANT" ? Math.ceil(total / 2) : Math.floor(total / 2)
@@ -46,4 +46,9 @@ export function utilityDate(value?: string | null) {
   if (!value) return "Date unavailable"
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+}
+export function utilityCheckedAt(value?: string | null) {
+  if (!value) return "Check time unavailable"
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? "Check time unavailable" : `Checked ${date.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
 }

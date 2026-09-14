@@ -838,7 +838,10 @@ export default function TenantHome() {
                     if (url.protocol !== "https:" && url.origin !== window.location.origin) throw new Error("Invalid checkout link.")
                     window.location.assign(url.toString())
                   } else throw new Error(res.data?.message || "Checkout could not be prepared.")
-                } catch (e) { throw new Error(axios.isAxiosError(e) ? String(e.response?.data?.message || "Checkout could not be prepared. Please try again.") : e instanceof Error ? e.message : "Checkout unavailable.") }
+                } catch (e) {
+                  if (axios.isAxiosError(e) && e.response?.data?.refreshRequired) await load()
+                  throw new Error(axios.isAxiosError(e) ? String(e.response?.data?.message || "Checkout could not be prepared. Please try again.") : e instanceof Error ? e.message : "Checkout unavailable.")
+                }
               }}
               onReceipt={async bill => {
                 const access = await token()
