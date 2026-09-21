@@ -1,6 +1,6 @@
 export type Service = "ELECTRICITY" | "WATER" | "GAS"
 export type HubAccount = { id: string; rent_id: string; utility_type: Service; operator_name: string; consumer_number: string; active?: boolean; property_name?: string; responsibility?: string | null }
-export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; provider_checked_at?: string; created_at?: string; updated_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null; responsibility?: string | null; collected_amount_paise?: number; tenant_collected_paise?: number; landlord_collected_paise?: number }
+export type HubBill = { id: string; utility_account_id: string; rent_id: string; bill_amount_paise: number; due_date?: string | null; provider_checked_at?: string; created_at?: string; updated_at?: string; status?: string; bill_status?: string; collection_status?: string; bbps_status?: string; billing_period?: string | null; consumer_name?: string | null; provider_txn_id?: string | null; bbps_ref_id?: string | null; responsibility?: string | null; collected_amount_paise?: number; tenant_collected_paise?: number; landlord_collected_paise?: number; owner_funded_paise?: number }
 export type UtilityPayerRole = "TENANT" | "LANDLORD"
 export function utilitySharePaise(total: number, responsibility: string | null | undefined, payer: UtilityPayerRole) {
   if (responsibility === "SHARED") return payer === "TENANT" ? Math.ceil(total / 2) : Math.floor(total / 2)
@@ -30,6 +30,12 @@ export const stageCopy: Record<BillStage, { label: string; detail: string }> = {
   paid: { label: "Paid", detail: "This bill is recorded as paid. Download the available payment confirmation below." },
   review: { label: "Needs review", detail: "This bill needs a status review. Contact your property manager or Rentomatic support before paying again." },
   cancelled: { label: "Cancelled", detail: "This bill was cancelled and cannot be paid." },
+}
+export function utilityBillCopy(bill: HubBill) {
+  if ((bill.owner_funded_paise || 0) > 0 && utilityStage(bill) === "processing") {
+    return { label: "Owner advance recorded", detail: "Rentomatic advanced its own funds for the unpaid balance. The utility payment is awaiting Eko confirmation. This advance is not a tenant payment." }
+  }
+  return stageCopy[utilityStage(bill)]
 }
 export function currentUtilityBills(bills: HubBill[]) {
   const seen = new Set<string>()
