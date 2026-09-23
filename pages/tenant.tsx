@@ -1,3 +1,4 @@
+import { downloadUtilityReceipt } from "../lib/utilityReceipt"
 import axios from "axios"
 import UtilityHub from "../components/UtilityHub"
 import { currentUtilityBills, HubBill, utilityStage } from "../lib/utilityUi"
@@ -846,10 +847,7 @@ export default function TenantHome() {
               onReceipt={async bill => {
                 const access = await token()
                 if (!access) throw new Error("Please sign in again.")
-                const response = await fetch(`${api}/utility/receipts/${encodeURIComponent(bill.id)}/download`, { headers: { Authorization: `Bearer ${access}` } })
-                if (!response.ok) throw new Error("A verified confirmation is not available yet. Refresh or contact your property manager.")
-                const url = URL.createObjectURL(await response.blob())
-                const link = document.createElement("a");link.href=url;link.download="utility-confirmation-"+bill.id.slice(0,8)+".html";link.click();URL.revokeObjectURL(url)
+                await downloadUtilityReceipt(`${api}/utility/receipts/${encodeURIComponent(bill.id)}/download`, access, bill.id)
               }}
             />
           )}
