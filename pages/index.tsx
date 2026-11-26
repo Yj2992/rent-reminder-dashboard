@@ -168,6 +168,21 @@ export default function Home() {
         </div>
       </section>
 
+      <section aria-label="Pricing and business contact" className="mx-auto grid max-w-5xl gap-6 px-4 py-8 text-sm leading-6 sm:grid-cols-2 sm:px-6">
+        <div>
+          <h2 className="mb-2 text-lg font-semibold">Pricing and payments</h2>
+          <p>Rentomatic currently charges ₹0 in subscription fees. Rent and utility amounts vary by invoice. Open your payment link to review the amount due before paying.</p>
+        </div>
+        <div>
+          <h2 className="mb-2 text-lg font-semibold">Business contact</h2>
+          <address className="not-italic">
+            <p>Mulund West, Mumbai 400080</p>
+            <p><a className="underline" href="tel:+917738029773">+91 77380 29773</a></p>
+            <p><a className="underline" href="mailto:support@rentomatic.in">support@rentomatic.in</a></p>
+          </address>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="mx-auto flex max-w-6xl flex-wrap justify-between gap-3 px-4 py-8 text-xs text-[#60708d] sm:px-6">
         <span className="font-semibold">© Rentomatic · Indian Rental Ecosystem</span>
