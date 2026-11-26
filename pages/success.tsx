@@ -1,4 +1,5 @@
 import axios from "axios"
+import { paymentResult } from "../lib/paymentResult"
 import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
@@ -26,8 +27,9 @@ export default function Success() {
   const [loading, setLoading] = useState(Boolean(token))
   const [message, setMessage] = useState("Refreshing paid invoice...")
 
+  const [refreshKey, setRefreshKey] = useState(0)
+  const result = paymentResult(paymentStatus?.status)
   const paid = paymentStatus?.status === "PAID"
-  const collected = paymentStatus?.status === "COLLECTED"
   const isUtility = Boolean(invoice?.invoiceNumber?.startsWith("EBILL-") || invoice?.invoiceNumber?.startsWith("UTIL-"))
   const amountText = useMemo(
     () => (invoice ? formatAmount(invoice.amount, invoice.currency) : ""),
@@ -35,6 +37,11 @@ export default function Success() {
   )
 
   useEffect(() => {
+    if (!router.isReady) return
+    setPaymentStatus(null)
+    setInvoice(null)
+    setLoading(true)
+    setMessage("Checking the latest payment status…")
     if (!token || !orderId) {
       setMessage("A payment reference is required to check authoritative status.")
       setLoading(false)
@@ -80,8 +87,8 @@ export default function Success() {
           return
         }
 
-        if (statusResponse.data.status === "FAILED" || statusResponse.data.status === "RECONCILIATION_REQUIRED") {
-          setMessage(statusResponse.data.message)
+        if (paymentResult(statusResponse.data.status).terminal) {
+          setMessage(statusResponse.data.message || paymentResult(statusResponse.data.status).detail)
           setLoading(false)
           return
         }
@@ -110,7 +117,7 @@ export default function Success() {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [token, orderId])
+  }, [router.isReady, token, orderId, refreshKey])
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] px-4 py-6 text-[#17211f]">
@@ -120,16 +127,10 @@ export default function Success() {
             {paid ? "✓" : "…"}
           </div>
           <p className={`text-sm font-semibold uppercase tracking-wide ${paid ? "text-[#207348]" : "text-[#8a6400]"}`}>
-            {collected ? "Payment collected" : paid ? "Payment confirmed" : "Payment processing"}
+            {loading ? "Checking payment" : result.title}
           </p>
-          <h1 className="mt-2 text-3xl font-bold">{collected ? "Your utility payment is received" : paid ? (isUtility ? "Utility payment received" : "Rent payment received") : "Checking your payment"}</h1>
-          <p className="mt-3 text-[#5d6d68]">
-            {collected
-              ? "Your utility bill is awaiting approval and provider confirmation."
-              : paid
-              ? "Your paid invoice is updated below."
-              : "We are waiting for authenticated confirmation from the payment provider."}
-          </p>
+          <h1 className="mt-2 text-3xl font-bold">{loading ? "Checking your payment" : result.title}</h1>
+          <p className="mt-3 text-[#5d6d68]">{result.detail}</p>
 
           <div className="mt-5 rounded-lg border border-[#e1e8e6] bg-[#f8faf9] p-4">
             <div className="flex items-start justify-between gap-4">
@@ -139,8 +140,8 @@ export default function Success() {
                   {invoice?.invoiceNumber || invoiceId || "Payment invoice"}
                 </p>
               </div>
-              <span className="rounded-full bg-[#e9f8ef] px-3 py-1 text-xs font-semibold text-[#207348]">
-                {collected ? "Collected" : paid ? "Paid" : paymentStatus?.status === "RECONCILIATION_REQUIRED" ? "Needs review" : "Processing"}
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {loading ? "Checking" : result.title}
               </span>
             </div>
 
@@ -161,6 +162,8 @@ export default function Success() {
           </div>
 
           <div className="mt-6 space-y-3">
+            {token && orderId && <button type="button" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)} className="w-full rounded-lg border px-4 py-3 font-semibold disabled:opacity-50">{loading ? "Checking…" : "Check latest payment status"}</button>}
+            {!token && <Link href="/tenant" className="block text-center underline">Sign in to view your invoices</Link>}
             {isUtility && <Link href="/tenant?tab=utilities" className="block w-full rounded-full bg-blue-700 px-4 py-3 text-center font-semibold text-white">View utility payments</Link>}
             {invoice?.publicUrl && paid && (
               <a
@@ -182,7 +185,7 @@ export default function Success() {
                     : "bg-[#1f6f5b] text-white hover:bg-[#185846]"
                 }`}
               >
-                {loading ? "Refresh invoice status" : "View invoice status"}
+                {paymentStatus?.status === "FAILED" ? "Review invoice and payment options" : "View invoice status"}
               </Link>
             )}
           </div>

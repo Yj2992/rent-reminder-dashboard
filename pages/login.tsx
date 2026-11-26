@@ -36,11 +36,19 @@ export default function TenantLogin() {
 
   async function google() {
     if (!tenantAuth) return
-    const { error: oauthError } = await tenantAuth.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/tenant`, queryParams: { prompt: "select_account" } },
-    })
-    if (oauthError) setError(oauthError.message)
+    setBusy(true)
+    setError("")
+    try {
+      const { error: oauthError } = await tenantAuth.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/tenant`, queryParams: { prompt: "select_account" } },
+      })
+      if (oauthError) setError(oauthError.message)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not start Google sign-in.")
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

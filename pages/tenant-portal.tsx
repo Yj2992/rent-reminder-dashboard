@@ -1,3 +1,4 @@
+import { legacyPortalDestination } from "../lib/paymentResult"
 import { useEffect } from "react"
 import { useRouter } from "next/router"
 
@@ -6,18 +7,7 @@ export default function TenantPortalRedirect() {
 
   useEffect(() => {
     if (!router.isReady) return
-    const { token, ref, order_id } = router.query
-
-    if (token && typeof token === "string") {
-      const orderQuery = order_id && typeof order_id === "string" ? `?order_id=${encodeURIComponent(order_id)}` : ""
-      router.replace(`/pay/${encodeURIComponent(token)}${orderQuery}`)
-    } else if (order_id && typeof order_id === "string") {
-      router.replace(`/pay/${encodeURIComponent(order_id)}?order_id=${encodeURIComponent(order_id)}`)
-    } else if (ref && typeof ref === "string") {
-      router.replace(`/tenant?ref=${encodeURIComponent(ref)}`)
-    } else {
-      router.replace("/tenant")
-    }
+    router.replace(legacyPortalDestination(router.query))
   }, [router.isReady, router.query])
 
   return (

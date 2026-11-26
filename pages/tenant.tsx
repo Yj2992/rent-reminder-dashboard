@@ -1,12 +1,30 @@
 import { downloadUtilityReceipt } from "../lib/utilityReceipt"
 import axios from "axios"
 import UtilityHub from "../components/UtilityHub"
-import { currentUtilityBills, HubBill, utilityStage } from "../lib/utilityUi"
+import { currentUtilityBills, HubBill, utilityStage, utilityShareRemaining } from "../lib/utilityUi"
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/router"
 import { tenantAuth } from "../lib/tenantAuth"
 import { OWNER_BACKEND_BASE_URL } from "../lib/sharedRules"
 import { tenantRoutes } from "../lib/tenantRoutes"
+import {
+  buildConditionDisplayName,
+  CONDITION_ROOMS,
+  ConditionRating,
+  ConditionStage,
+  encodeConditionDescription,
+  inferMediaKindFromFile,
+  validateConditionMediaFile,
+  validateConditionMediaType,
+} from "../lib/propertyConditionMedia"
+import { compressMediaToLimitIfNeeded } from "../lib/mediaCompressor"
+import {
+  computeMissingMandatoryKycDocs,
+  extractTenantConditionMedia,
+  groupTenantConditionByRoom,
+  isConditionMediaDocument,
+  TenantConditionItem,
+} from "../lib/tenantConditionMedia"
 
 type Invoice = {
   id: string
@@ -108,7 +126,7 @@ type ProfilePayload = {
   household: Household[]
 }
 
-type Tab = "home" | "bills" | "utilities" | "maintenance" | "documents" | "lease" | "profile"
+type Tab = "home" | "bills" | "utilities" | "maintenance" | "inspections" | "documents" | "lease" | "profile"
 
 const api = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || OWNER_BACKEND_BASE_URL
 axios.defaults.timeout = 90_000
@@ -147,6 +165,18 @@ const maintenanceStage = (status: string) => {
   return 0
 }
 
+const sections: Record<Tab, { label: string; description: string }> = {
+  home: { label: "Overview", description: "Your balances, upcoming payments, and tenancy updates in one place." },
+  bills: { label: "Invoices & payments", description: "Review rent invoices, remaining balances, and payment history." },
+  utilities: { label: "Utilities", description: "Track your utility bills, pay your share, and download available receipts." },
+  maintenance: { label: "Maintenance", description: "Report a problem and follow your property manager’s updates." },
+  inspections: { label: "Handover media", description: "Compare move-in and move-out photos & videos by room." },
+  documents: { label: "Documents", description: "Manage your documents and outstanding document requirements." },
+  lease: { label: "Lease & deposit", description: "Review your agreement, acknowledgements, and deposit entries." },
+  profile: { label: "Account", description: "Manage your personal details, household, and account security." },
+}
+const tabs = Object.keys(sections) as Tab[]
+
 const retryableReadStatuses = new Set([429, 502, 503, 504])
 
 async function authenticatedGet<T = any>(url: string, access: string) {
@@ -167,7 +197,21 @@ export default function TenantHome() {
   const [items, setItems] = useState<Dashboard[]>([])
   const [selected, setSelected] = useState(0)
   const [tab, setTab] = useState<Tab>("home")
-  useEffect(() => { if (router.isReady && router.query.tab === "utilities") setTab("utilities") }, [router.isReady, router.query.tab])
+  useEffect(() => {
+    if (!router.isReady) return
+    const next = router.query.tab
+    setTab(typeof next === "string" && tabs.includes(next as Tab) ? next as Tab : "home")
+  }, [router.isReady, router.query.tab])
+  function navigateTab(next: Tab) {
+    setTab(next)
+    void router.push({ pathname: "/tenant", query: { ...router.query, tab: next } }, undefined, { shallow: true, scroll: false })
+  }
+  const [invoiceSearch, setInvoiceSearch] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
+  async function refreshDashboard() {
+    setRefreshing(true)
+    try { await load() } finally { setRefreshing(false) }
+  }
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -181,6 +225,18 @@ export default function TenantHome() {
   const [attachments, setAttachments] = useState<Record<string, Attachment[]>>({})
   const [profile, setProfile] = useState<ProfilePayload>({ profile: { fullName: "" }, household: [] })
   const [member, setMember] = useState({ name: "", relationship: "OTHER", phone: "", email: "" })
+  const [conditionStage, setConditionStage] = useState<ConditionStage>("BEFORE_RENT")
+  const [conditionRoom, setConditionRoom] = useState<string>(CONDITION_ROOMS[0])
+  const [conditionRating, setConditionRating] = useState<ConditionRating>("GOOD")
+  const [conditionTitle, setConditionTitle] = useState("")
+  const [conditionNotes, setConditionNotes] = useState("")
+  const [conditionFile, setConditionFile] = useState<File | null>(null)
+  const [conditionViewMode, setConditionViewMode] = useState<"compare" | "timeline">("compare")
+  const [conditionStageFilter, setConditionStageFilter] = useState<"ALL" | ConditionStage>("ALL")
+  const [conditionRoomFilter, setConditionRoomFilter] = useState<string>("ALL")
+  const [conditionSearch, setConditionSearch] = useState("")
+  const [compressionProgress, setCompressionProgress] = useState<number | null>(null)
+  const [mediaLightbox, setMediaLightbox] = useState<{ item: TenantConditionItem; url: string } | null>(null)
 
   async function token() {
     return (await tenantAuth?.auth.getSession()).data.session?.access_token
@@ -248,11 +304,35 @@ export default function TenantHome() {
   )
 
   const dueUtilityPaise = useMemo(
-    () => dueUtilityBills.reduce((sum, b) => sum + b.bill_amount_paise, 0),
-    [dueUtilityBills]
+    () => dueUtilityBills.reduce((sum, b) => sum + utilityShareRemaining(b,
+      b.responsibility || d?.utilityAccounts?.find((a) => a.id === b.utility_account_id)?.responsibility || "TENANT_PAYS", "TENANT"), 0),
+    [dueUtilityBills, d?.utilityAccounts]
   )
 
   const totalDuePaise = openRentPaise + dueUtilityPaise
+
+  const conditionItems = useMemo(() => extractTenantConditionMedia(d?.documents || []), [d?.documents])
+  const filteredConditionItems = useMemo(() => {
+    const q = conditionSearch.trim().toLowerCase()
+    return conditionItems.filter((item) => {
+      if (conditionStageFilter !== "ALL" && item.stage !== conditionStageFilter) return false
+      if (conditionRoomFilter !== "ALL" && item.room !== conditionRoomFilter) return false
+      if (q) {
+        const hay = `${item.title} ${item.room} ${item.notes} ${item.sourceDoc.fileName}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [conditionItems, conditionStageFilter, conditionRoomFilter, conditionSearch])
+  const groupedConditionRooms = useMemo(() => groupTenantConditionByRoom(filteredConditionItems), [filteredConditionItems])
+  const regularDocuments = useMemo(
+    () => (d?.documents || []).filter((doc) => !isConditionMediaDocument(doc)),
+    [d?.documents]
+  )
+  const missingMandatoryKyc = useMemo(
+    () => computeMissingMandatoryKycDocs(regularDocuments),
+    [regularDocuments]
+  )
 
   function selectTenancy(index: number) {
     const account = items[index]
@@ -297,6 +377,139 @@ export default function TenantHome() {
       setError(axios.isAxiosError(e) ? String(e.response?.data?.message || e.message) : "Could not submit request")
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function uploadConditionMedia(e: FormEvent) {
+    e.preventDefault()
+    if (!d || !conditionFile) return
+    setBusy(true)
+    setError("")
+    setMessage("")
+    try {
+      const typeError = validateConditionMediaType(conditionFile)
+      if (typeError) throw new Error(typeError)
+
+      let uploadFile = conditionFile
+      if (uploadFile.size > 50 * 1024 * 1024) {
+        setCompressionProgress(5)
+        const compressed = await compressMediaToLimitIfNeeded(uploadFile, (pct) => setCompressionProgress(pct))
+        uploadFile = compressed.file
+        setCompressionProgress(null)
+      }
+
+      const sizeError = validateConditionMediaFile(uploadFile)
+      if (sizeError) throw new Error(sizeError)
+
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      const mediaKind = inferMediaKindFromFile(uploadFile)
+      const displayTitle = buildConditionDisplayName(conditionStage, conditionRoom, conditionTitle)
+      const description = encodeConditionDescription({
+        stage: conditionStage,
+        room: conditionRoom,
+        rating: conditionRating,
+        mediaKind,
+        notes: conditionNotes,
+      })
+      setProgress(20)
+      await axios.post(
+        `${api}${tenantRoutes.documents}`,
+        {
+          rentId: d.rentId,
+          title: displayTitle,
+          description,
+          category: "OTHER",
+          fileName: uploadFile.name,
+          mimeType: uploadFile.type || (mediaKind === "VIDEO" ? "video/mp4" : "image/jpeg"),
+          documentBase64: await fileData(uploadFile),
+          tenantVisible: true,
+        },
+        {
+          headers: { Authorization: `Bearer ${access}` },
+          onUploadProgress: (ev) => ev.total && setProgress(20 + Math.round((ev.loaded / ev.total) * 80)),
+        }
+      )
+      setConditionTitle("")
+      setConditionNotes("")
+      setConditionFile(null)
+      setProgress(100)
+      setMessage("Handover photo/video uploaded and shared with your property manager.")
+      await load()
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? String(err.response?.data?.message || err.message) : err instanceof Error ? err.message : "Could not upload media")
+    } finally {
+      setCompressionProgress(null)
+      setBusy(false)
+      setTimeout(() => setProgress(0), 800)
+    }
+  }
+
+  async function previewConditionMedia(item: TenantConditionItem) {
+    try {
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      const r = await authenticatedGet(`${api}${tenantRoutes.document(item.doc.id)}`, access)
+      setMediaLightbox({ item, url: r.data.url })
+    } catch {
+      setError("Could not load media preview. Please retry.")
+    }
+  }
+
+  async function downloadConditionMedia(item: TenantConditionItem) {
+    try {
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      const r = await authenticatedGet(`${api}${tenantRoutes.document(item.doc.id)}`, access)
+      const a = document.createElement("a")
+      a.href = r.data.url
+      a.download = item.sourceDoc.fileName || item.title
+      a.target = "_blank"
+      a.rel = "noreferrer"
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } catch {
+      setError("Could not download media. Please retry.")
+    }
+  }
+
+  async function replaceConditionMedia(item: TenantConditionItem, file: File | null) {
+    if (!file) return
+    setBusy(true)
+    setError("")
+    setMessage("")
+    try {
+      const typeError = validateConditionMediaType(file)
+      if (typeError) throw new Error(typeError)
+      let uploadFile = file
+      if (uploadFile.size > 50 * 1024 * 1024) {
+        setCompressionProgress(5)
+        const compressed = await compressMediaToLimitIfNeeded(uploadFile, (pct) => setCompressionProgress(pct))
+        uploadFile = compressed.file
+        setCompressionProgress(null)
+      }
+      const sizeError = validateConditionMediaFile(uploadFile)
+      if (sizeError) throw new Error(sizeError)
+      const access = await token()
+      if (!access) throw new Error("Session expired")
+      setProgress(10)
+      await axios.post(
+        `${api}${tenantRoutes.documentReplace(item.doc.id)}`,
+        { fileName: uploadFile.name, mimeType: uploadFile.type, documentBase64: await fileData(uploadFile) },
+        {
+          headers: { Authorization: `Bearer ${access}` },
+          onUploadProgress: (ev) => ev.total && setProgress(Math.round((ev.loaded / ev.total) * 100)),
+        }
+      )
+      setMessage("Handover media replaced.")
+      await load()
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? String(err.response?.data?.message || err.message) : err instanceof Error ? err.message : "Replacement failed")
+    } finally {
+      setCompressionProgress(null)
+      setBusy(false)
+      setTimeout(() => setProgress(0), 800)
     }
   }
 
@@ -496,7 +709,7 @@ export default function TenantHome() {
             </div>
           </div>
           <button
-            onClick={() => setTab("profile")}
+            onClick={() => navigateTab("profile")}
             className="rounded-xl border border-[#ccd5e4] bg-white px-4 py-2 text-sm font-semibold text-[#182133] shadow-sm transition hover:border-[#1f6ad8] hover:bg-[#f0f6ff]"
           >
             Account
@@ -505,7 +718,7 @@ export default function TenantHome() {
       </header>
 
       <div className="mx-auto grid max-w-7xl gap-7 px-4 py-6 sm:px-6 md:grid-cols-[220px_1fr] lg:py-8">
-        <aside className="hidden h-fit rounded-2xl border border-[#ccd5e4] bg-white p-3 shadow-[var(--rm-shadow)] md:block">
+        <aside className="hidden h-fit rounded-2xl border border-[#ccd5e4] bg-[#0d1b29] p-3 shadow-[var(--rm-shadow)] md:sticky md:top-24 md:block">
           <label className="block p-2 text-xs font-bold uppercase tracking-wider text-[#60708d]">Your tenancy</label>
           {items.length > 1 ? (
             <select
@@ -527,29 +740,32 @@ export default function TenantHome() {
               <p className="text-xs text-[#60708d]">{d.tenantName}</p>
             </div>
           )}
-          {(["home", "bills", "utilities", "maintenance", "documents", "lease", "profile"] as Tab[]).map((x) => (
+          {tabs.map((x) => (
             <button
               key={x}
-              onClick={() => setTab(x)}
+              aria-current={tab === x ? "page" : undefined}
+              onClick={() => navigateTab(x)}
               className={`mb-1 w-full rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold transition ${
-                tab === x ? "bg-[#1f6ad8] text-white shadow-sm" : "text-[#33415c] hover:bg-[#f0f6ff]"
+                tab === x ? "bg-[#1f6ad8] text-white shadow-sm" : "text-[#dce6f2] hover:bg-[#213348]"
               }`}
             >
-              {x === "utilities" ? "🎛️ Utilities" : x === "bills" ? "Rent Invoices" : title(x)}
+              {sections[x].label}
             </button>
           ))}
         </aside>
 
-        <section>
+        <section className="min-w-0">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] px-5 py-5 sm:px-6">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1f6ad8]">
                 {tab === "home" ? "Your home" : "Tenant workspace"}
               </p>
               <h1 className="mt-1 text-3xl font-semibold tracking-[-0.025em] text-[#182133]">
-                {tab === "home" ? `Welcome, ${d.tenantName || d.tenantEmail}` : title(tab)}
+                {tab === "home" ? `Welcome, ${d.tenantName || d.tenantEmail}` : sections[tab].label}
               </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#60708d]">{sections[tab].description}</p>
             </div>
+            <button type="button" onClick={refreshDashboard} disabled={refreshing || busy} className="btn-secondary disabled:opacity-50">{refreshing ? "Refreshing…" : "Refresh status"}</button>
             {items.length > 1 && (
               <span className="rounded-full border border-[#dde7ff] bg-[#dde7ff] px-3.5 py-1 text-xs font-semibold text-[#1a42a5]">
                 {items.length} tenancies linked to this email account
@@ -621,7 +837,7 @@ export default function TenantHome() {
                     )}
                     {dueUtilityBills.length > 0 && (
                       <button
-                        onClick={() => setTab("utilities")}
+                        onClick={() => navigateTab("utilities")}
                         className="rounded-xl border border-[#c6d7f8] bg-[#f4f8ff] px-5 py-3 text-sm font-bold text-[#1f6ad8] transition hover:bg-[#eaf1ff]"
                       >
                         View utility bills ({money(dueUtilityPaise)})
@@ -658,7 +874,7 @@ export default function TenantHome() {
                     <h3 className="text-base font-bold text-[#182133]">Rent Invoices</h3>
                   </div>
                   <button
-                    onClick={() => setTab("bills")}
+                    onClick={() => navigateTab("bills")}
                     className="text-xs font-bold text-[#2151c5] hover:underline"
                   >
                     View all invoices ({d.invoices.length}) →
@@ -718,7 +934,7 @@ export default function TenantHome() {
                     <h3 className="text-base font-bold text-[#182133]">Utility Bills (Electric, Water &amp; Gas)</h3>
                   </div>
                   <button
-                    onClick={() => setTab("utilities")}
+                    onClick={() => navigateTab("utilities")}
                     className="text-xs font-bold text-[#1f6ad8] hover:underline"
                   >
                     View utilities ({dedupedUtilityBills.length}) →
@@ -756,7 +972,7 @@ export default function TenantHome() {
                               {money(bill.bill_amount_paise)}
                             </span>
                             <button
-                              onClick={() => setTab("utilities")}
+                              onClick={() => navigateTab("utilities")}
                               className="rounded-xl bg-[#1f6ad8] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#1756b5] active:scale-95"
                             >
                               Review utility bill →
@@ -789,15 +1005,15 @@ export default function TenantHome() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Action
                     text="Report or track maintenance"
-                    go={() => setTab("maintenance")}
+                    go={() => navigateTab("maintenance")}
                   />
                   <Action
                     text={`${d.documents.length} shared document${d.documents.length === 1 ? "" : "s"}`}
-                    go={() => setTab("documents")}
+                    go={() => navigateTab("documents")}
                   />
                   <Action
                     text="View lease & tenancy details"
-                    go={() => setTab("lease")}
+                    go={() => navigateTab("lease")}
                   />
                 </div>
               </Card>
@@ -805,16 +1021,19 @@ export default function TenantHome() {
           )}
 
           {tab === "bills" && (
-            <Card title="Rent Invoices & Receipts">
+            <Card title="Rent invoices & receipts">
+              <label className="mb-5 block text-sm font-semibold">Search invoices
+                <input className="input mt-2 w-full" type="search" value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} placeholder="Invoice number, date, or status" />
+              </label>
               <h3 className="text-base font-bold text-[#182133]">To pay</h3>
               {openBills.length ? (
-                openBills.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
+                openBills.filter((x) => `${x.invoice_number || ""} ${x.due_date || ""} ${x.status}`.toLowerCase().includes(invoiceSearch.trim().toLowerCase())).map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
               ) : (
                 <Empty text="No rent is currently due." />
               )}
               <h3 className="mt-8 text-base font-bold text-[#182133]">Rent Payment history</h3>
               {paid.length ? (
-                paid.map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
+                paid.filter((x) => `${x.invoice_number || ""} ${x.due_date || ""} ${x.status}`.toLowerCase().includes(invoiceSearch.trim().toLowerCase())).map((x) => <Bill key={x.id} x={x} open={() => x.payment_token && router.push(`/pay/${x.payment_token}`)} />)
               ) : (
                 <Empty text="No rent receipts yet." />
               )}
@@ -1121,12 +1340,388 @@ export default function TenantHome() {
             </div>
           )}
 
+          {tab === "inspections" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-2xl border border-[#ccd5e4] bg-white p-4 shadow-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#60708d]">Before Move-In</span>
+                  <p className="mt-1 text-2xl font-extrabold text-[#182133]">
+                    {conditionItems.filter((i) => i.stage === "BEFORE_RENT").length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#ccd5e4] bg-white p-4 shadow-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#60708d]">After Move-Out</span>
+                  <p className="mt-1 text-2xl font-extrabold text-[#182133]">
+                    {conditionItems.filter((i) => i.stage === "AFTER_RENT").length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#ccd5e4] bg-white p-4 shadow-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#60708d]">Photos</span>
+                  <p className="mt-1 text-2xl font-extrabold text-[#182133]">
+                    {conditionItems.filter((i) => i.mediaKind === "PHOTO").length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#ccd5e4] bg-white p-4 shadow-sm">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#60708d]">Videos</span>
+                  <p className="mt-1 text-2xl font-extrabold text-[#182133]">
+                    {conditionItems.filter((i) => i.mediaKind === "VIDEO").length}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+                <Card title="Upload Handover Media">
+                  <p className="mb-4 rounded-xl border border-[#c7d7f5] bg-[#f0f6ff] px-4 py-3 text-xs leading-5 text-[#33415c]">
+                    Upload move-in or move-out photos &amp; videos. Files over 50 MB are compressed automatically in your browser.
+                  </p>
+                  {compressionProgress !== null && (
+                    <div className="mb-4">
+                      <div className="mb-1 flex justify-between text-xs font-semibold text-[#182133]">
+                        <span>Compressing media…</span>
+                        <span>{compressionProgress}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[#e7eef8]">
+                        <div className="h-full bg-[#1f6ad8] transition-all" style={{ width: `${compressionProgress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {progress > 0 && (
+                    <div className="mb-4">
+                      <div className="mb-1 flex justify-between text-xs font-semibold text-[#182133]">
+                        <span>Uploading…</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[#e7eef8]">
+                        <div className="h-full bg-[#2151c5] transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  <form onSubmit={uploadConditionMedia} className="space-y-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-[#60708d]">Handover Stage</label>
+                      <div className="mt-1.5 grid grid-cols-2 gap-2">
+                        {([
+                          { id: "BEFORE_RENT", label: "Before Move-In" },
+                          { id: "AFTER_RENT", label: "After Move-Out" },
+                        ] as const).map((s) => (
+                          <button
+                            type="button"
+                            key={s.id}
+                            onClick={() => setConditionStage(s.id)}
+                            className={`rounded-xl py-2 text-xs font-bold transition ${
+                              conditionStage === s.id
+                                ? "bg-[#1f6ad8] text-white shadow-sm"
+                                : "bg-[#f1f5fa] text-[#182133] hover:bg-[#e2eaf5]"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="block text-xs font-bold text-[#60708d]">
+                      Room / Area
+                      <select
+                        className="input mt-1"
+                        value={conditionRoom}
+                        onChange={(e) => setConditionRoom(e.target.value)}
+                      >
+                        {CONDITION_ROOMS.map((room) => (
+                          <option key={room} value={room}>
+                            {room}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-bold text-[#60708d]">
+                      Condition Rating
+                      <select
+                        className="input mt-1"
+                        value={conditionRating}
+                        onChange={(e) => setConditionRating(e.target.value as ConditionRating)}
+                      >
+                        <option value="EXCELLENT">Excellent</option>
+                        <option value="GOOD">Good</option>
+                        <option value="FAIR">Fair</option>
+                        <option value="DAMAGED">Damaged</option>
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-bold text-[#60708d]">
+                      Title (Optional)
+                      <input
+                        className="input mt-1"
+                        placeholder="e.g. Living room wall & ceiling"
+                        value={conditionTitle}
+                        onChange={(e) => setConditionTitle(e.target.value)}
+                      />
+                    </label>
+
+                    <label className="block text-xs font-bold text-[#60708d]">
+                      Notes (Optional)
+                      <textarea
+                        rows={2}
+                        className="input mt-1"
+                        placeholder="Observations, meter reading, key count..."
+                        value={conditionNotes}
+                        onChange={(e) => setConditionNotes(e.target.value)}
+                      />
+                    </label>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#60708d]">Photo or Video</label>
+                      <input
+                        required
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                        className="input mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-[#dde7ff] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-[#1a42a5]"
+                        onChange={(e) => setConditionFile(e.target.files?.[0] || null)}
+                      />
+                      <p className="mt-1 text-[11px] text-[#60708d]">JPG, PNG, WebP, HEIC or MP4, MOV, WebM (auto-compressed if over 50 MB).</p>
+                    </div>
+
+                    <button disabled={busy || !conditionFile} className="btn-primary w-full py-2.5 text-sm font-bold">
+                      {busy ? "Uploading…" : "Upload Handover Media"}
+                    </button>
+                  </form>
+                </Card>
+
+                <Card title="Before & After Comparison">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex gap-1 rounded-full bg-[#f1f5fa] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setConditionViewMode("compare")}
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${conditionViewMode === "compare" ? "bg-white text-[#1f6ad8] shadow-xs" : "text-[#60708d]"}`}
+                      >
+                        Side-by-Side
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConditionViewMode("timeline")}
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${conditionViewMode === "timeline" ? "bg-white text-[#1f6ad8] shadow-xs" : "text-[#60708d]"}`}
+                      >
+                        Timeline ({filteredConditionItems.length})
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        className="rounded-xl border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133]"
+                        value={conditionStageFilter}
+                        onChange={(e) => setConditionStageFilter(e.target.value as "ALL" | ConditionStage)}
+                      >
+                        <option value="ALL">All stages</option>
+                        <option value="BEFORE_RENT">Before Move-In</option>
+                        <option value="AFTER_RENT">After Move-Out</option>
+                      </select>
+                      <select
+                        className="rounded-xl border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133]"
+                        value={conditionRoomFilter}
+                        onChange={(e) => setConditionRoomFilter(e.target.value)}
+                      >
+                        <option value="ALL">All rooms</option>
+                        {CONDITION_ROOMS.map((room) => (
+                          <option key={room} value={room}>
+                            {room}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <input
+                    type="search"
+                    className="input mb-4"
+                    placeholder="Search room, title, or notes..."
+                    value={conditionSearch}
+                    onChange={(e) => setConditionSearch(e.target.value)}
+                  />
+
+                  {!filteredConditionItems.length ? (
+                    <Empty text="No handover photos or videos yet. Upload move-in or move-out media to compare rooms side by side." />
+                  ) : conditionViewMode === "compare" ? (
+                    <div className="space-y-5">
+                      {groupedConditionRooms.map((group) => (
+                        <div key={group.room} className="rounded-2xl border border-[#dbe4f0] bg-[#fcfdff] p-4">
+                          <div className="mb-3 flex items-center justify-between border-b border-[#edf2f8] pb-2">
+                            <h4 className="text-sm font-bold text-[#182133]">{group.room}</h4>
+                            <span className="text-xs font-semibold text-[#60708d]">
+                              {group.before.length} before · {group.after.length} after
+                            </span>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#1f6ad8]">Before Move-In</p>
+                              <div className="space-y-2.5">
+                                {group.before.length ? (
+                                  group.before.map((item) => (
+                                    <div key={item.doc.id} className="rounded-xl border border-[#dbe4f0] bg-white p-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-bold text-[#182133]">
+                                            {item.mediaKind === "VIDEO" ? "🎬" : "📷"} {item.title}
+                                          </p>
+                                          <p className="mt-0.5 text-[11px] text-[#60708d]">
+                                            Rating: <strong>{title(item.rating)}</strong> · {item.sourceDoc.uploadedBy === "TENANT" ? "Uploaded by you" : "Landlord"}
+                                          </p>
+                                          {item.notes && <p className="mt-1 text-xs text-[#33415c]">{item.notes}</p>}
+                                        </div>
+                                      </div>
+                                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                        <button type="button" onClick={() => previewConditionMedia(item)} className="rounded-lg bg-[#eff6ff] px-2.5 py-1 text-[11px] font-bold text-[#1f6ad8] hover:bg-[#dbeafe]">
+                                          Preview
+                                        </button>
+                                        <button type="button" onClick={() => downloadConditionMedia(item)} className="rounded-lg border border-[#ccd5e4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#182133] hover:bg-[#f4f7fb]">
+                                          Download
+                                        </button>
+                                        {item.sourceDoc.uploadedBy === "TENANT" && (
+                                          <label className="cursor-pointer rounded-lg border border-[#ccd5e4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#182133] hover:bg-[#f4f7fb]">
+                                            Replace
+                                            <input
+                                              type="file"
+                                              className="hidden"
+                                              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                                              onChange={(e) => replaceConditionMedia(item, e.target.files?.[0] || null)}
+                                            />
+                                          </label>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="rounded-xl border border-dashed border-[#ccd5e4] p-3 text-xs text-[#60708d]">No move-in media yet.</p>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#0f8a73]">After Move-Out</p>
+                              <div className="space-y-2.5">
+                                {group.after.length ? (
+                                  group.after.map((item) => (
+                                    <div key={item.doc.id} className="rounded-xl border border-[#dbe4f0] bg-white p-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-bold text-[#182133]">
+                                            {item.mediaKind === "VIDEO" ? "🎬" : "📷"} {item.title}
+                                          </p>
+                                          <p className="mt-0.5 text-[11px] text-[#60708d]">
+                                            Rating: <strong>{title(item.rating)}</strong> · {item.sourceDoc.uploadedBy === "TENANT" ? "Uploaded by you" : "Landlord"}
+                                          </p>
+                                          {item.notes && <p className="mt-1 text-xs text-[#33415c]">{item.notes}</p>}
+                                        </div>
+                                      </div>
+                                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                        <button type="button" onClick={() => previewConditionMedia(item)} className="rounded-lg bg-[#eff6ff] px-2.5 py-1 text-[11px] font-bold text-[#1f6ad8] hover:bg-[#dbeafe]">
+                                          Preview
+                                        </button>
+                                        <button type="button" onClick={() => downloadConditionMedia(item)} className="rounded-lg border border-[#ccd5e4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#182133] hover:bg-[#f4f7fb]">
+                                          Download
+                                        </button>
+                                        {item.sourceDoc.uploadedBy === "TENANT" && (
+                                          <label className="cursor-pointer rounded-lg border border-[#ccd5e4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#182133] hover:bg-[#f4f7fb]">
+                                            Replace
+                                            <input
+                                              type="file"
+                                              className="hidden"
+                                              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
+                                              onChange={(e) => replaceConditionMedia(item, e.target.files?.[0] || null)}
+                                            />
+                                          </label>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="rounded-xl border border-dashed border-[#ccd5e4] p-3 text-xs text-[#60708d]">No move-out media yet.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredConditionItems.map((item) => (
+                        <div key={item.doc.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dbe4f0] bg-white p-3.5">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.stage === "BEFORE_RENT" ? "bg-[#eff6ff] text-[#1f6ad8]" : "bg-[#ecfdf5] text-[#047857]"}`}>
+                                {item.stage === "BEFORE_RENT" ? "Before Move-In" : "After Move-Out"}
+                              </span>
+                              <span className="text-xs font-bold text-[#60708d]">{item.room}</span>
+                            </div>
+                            <p className="mt-1 text-sm font-bold text-[#182133]">
+                              {item.mediaKind === "VIDEO" ? "🎬" : "📷"} {item.title}
+                            </p>
+                            {item.notes && <p className="mt-0.5 text-xs text-[#60708d]">{item.notes}</p>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => previewConditionMedia(item)} className="rounded-lg bg-[#eff6ff] px-3 py-1.5 text-xs font-bold text-[#1f6ad8]">
+                              Preview
+                            </button>
+                            <button type="button" onClick={() => downloadConditionMedia(item)} className="rounded-lg border border-[#ccd5e4] bg-white px-3 py-1.5 text-xs font-semibold text-[#182133]">
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {mediaLightbox && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true">
+                  <div className="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3.5">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-[#1f6ad8]">
+                          {mediaLightbox.item.stage === "BEFORE_RENT" ? "Before Move-In" : "After Move-Out"} · {mediaLightbox.item.room}
+                        </p>
+                        <h3 className="text-base font-bold text-[#182133]">{mediaLightbox.item.title}</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMediaLightbox(null)}
+                        className="rounded-full px-3 py-1.5 text-sm font-bold text-[#60708d] hover:bg-[#f1f5fa]"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="flex max-h-[70vh] items-center justify-center bg-slate-950 p-2">
+                      {mediaLightbox.item.mediaKind === "VIDEO" ? (
+                        <video src={mediaLightbox.url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-xl" />
+                      ) : (
+                        <img src={mediaLightbox.url} alt={mediaLightbox.item.title} className="max-h-[65vh] max-w-full rounded-xl object-contain" />
+                      )}
+                    </div>
+                    {mediaLightbox.item.notes && (
+                      <p className="border-t border-[#edf2f8] bg-[#fcfdff] px-5 py-3 text-xs text-[#33415c]">
+                        {mediaLightbox.item.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === "documents" && (
             <div className="grid gap-5 lg:grid-cols-2">
               <Card title="Document vault">
                 <p className="mb-4 rounded-xl border border-[#c7d7f5] bg-[#f0f6ff] px-4 py-3 text-xs leading-5 text-[#33415c]">
                   Landlord files are read-only. Files you upload are shared only with the manager of this tenancy and can be replaced here.
                 </p>
+                {missingMandatoryKyc.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-[#f5d9aa] bg-[#fff8eb] px-4 py-3 text-xs text-[#82530c]">
+                    <b className="font-bold">Missing mandatory KYC documents:</b>{" "}
+                    {missingMandatoryKyc.map((m) => m.label).join(", ")}
+                  </div>
+                )}
                 {progress > 0 && (
                   <div className="mb-4">
                     <div className="mb-1 flex justify-between text-xs font-semibold text-[#182133]">
@@ -1138,8 +1733,8 @@ export default function TenantHome() {
                     </div>
                   </div>
                 )}
-                {d.documents.length ? (
-                  d.documents.map((x) => (
+                {regularDocuments.length ? (
+                  regularDocuments.map((x) => (
                     <div key={x.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ccd5e4] py-4 last:border-b-0">
                       <button onClick={() => openDoc(x.id)} className="min-w-0 flex-1 text-left">
                         <b className="font-bold text-[#182133]">{x.title}</b>
@@ -1269,6 +1864,15 @@ export default function TenantHome() {
               <Card title="Your profile">
                 <form onSubmit={saveProfile} className="space-y-3.5">
                   <label className="block text-sm font-semibold text-[#182133]">
+                    Registered email
+                    <input
+                      type="email"
+                      readOnly
+                      className="input mt-1 bg-[#f4f7fb] text-[#60708d]"
+                      value={d.tenantEmail}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-[#182133]">
                     Full name
                     <input
                       required
@@ -1389,17 +1993,18 @@ export default function TenantHome() {
 
       <nav
         aria-label="Tenant portal"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#ccd5e4] bg-white/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(24,33,51,0.10)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-[#ccd5e4] bg-white/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(24,33,51,0.10)] backdrop-blur-xl md:hidden"
       >
-        {(["home", "bills", "maintenance", "documents", "lease"] as Tab[]).map((x) => (
+        {tabs.map((x) => (
           <button
             key={x}
-            onClick={() => setTab(x)}
-            className={`min-w-0 rounded-xl px-1 py-2 text-[10px] font-bold transition ${
+            onClick={() => navigateTab(x)}
+            aria-current={tab === x ? "page" : undefined}
+            className={`min-h-12 min-w-24 shrink-0 rounded-xl px-3 py-2 text-xs font-bold transition ${
               tab === x ? "bg-[#dde7ff] text-[#1a43a7]" : "text-[#60708d]"
             }`}
           >
-            {x === "maintenance" ? "Repairs" : x === "documents" ? "Vault" : title(x)}
+            {sections[x].label}
           </button>
         ))}
       </nav>

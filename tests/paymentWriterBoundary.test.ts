@@ -17,7 +17,7 @@ describe("FI-004 browser payment boundary", () => {
   })
 
   it("shows processing before committed paid state", () => {
-    expect(successPage).toContain('paid ? "Payment confirmed" : "Payment processing"')
+    expect(successPage).toContain("paymentResult(paymentStatus?.status)")
     expect(successPage).toContain("Checking the payment provider for confirmation…")
     expect(successPage).not.toContain(">Payment successful<")
   })
